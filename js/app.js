@@ -28,48 +28,72 @@ const App = (function () {
   }
 
   // 建立一個「假裝是 <video>」的控制器,讓既有的觀看紀錄邏輯不用大改
-  function createYouTubeController(containerId, videoId) {
+  function createYouTubeController(containerId, videoId, initialMaxWatched) {
     const target = new EventTarget();
     let player = null;
     let pollTimer = null;
     let lastPollTime = 0;
+    let maxWatchedTime = initialMaxWatched || 0;
+    let isPlaying = false;
 
     Object.defineProperty(target, 'currentTime', {
       get() { return player ? player.getCurrentTime() : 0; },
-      set(t) { if (player) player.seekTo(t, true); }
+      // 直接設定 currentTime 只允許用在「續播」等內部用途,一律做上限保護
+      set(t) { if (player) player.seekTo(Math.min(t, maxWatchedTime), true); }
     });
     Object.defineProperty(target, 'duration', {
       get() { return player ? player.getDuration() : 0; }
     });
     target.play = () => { if (player) player.playVideo(); };
+    target.pause = () => { if (player) player.pauseVideo(); };
+    target.mute = () => { if (player) player.mute(); };
+    target.unmute = () => { if (player) player.unMute(); };
+    target.getMaxWatchedTime = () => maxWatchedTime;
+    // 提供給書籤等功能使用的「安全跳轉」— 只允許跳到已經真正看過的位置,不能跳關
+    target.requestSeek = (t) => {
+      if (!player) return false;
+      const safeTime = Math.min(Math.max(0, t), maxWatchedTime);
+      player.seekTo(safeTime, true);
+      return safeTime >= t - 0.5; // 回報是否為「完整跳轉」(沒有被裁切)
+    };
+    target.isPlayingNow = () => isPlaying;
 
     loadYouTubeAPI().then(() => {
       player = new YT.Player(containerId, {
+        playerVars: { rel: 0, modestbranding: 1, controls: 0, disablekb: 1, fs: 0 },
         videoId,
-        playerVars: { rel: 0, modestbranding: 1 },
         events: {
           onReady: () => {
             target.dispatchEvent(new Event('loadedmetadata'));
           },
           onStateChange: (e) => {
             if (e.data === YT.PlayerState.PLAYING) {
+              isPlaying = true;
               target.dispatchEvent(new Event('play'));
               if (!pollTimer) {
                 lastPollTime = player.getCurrentTime();
                 pollTimer = setInterval(() => {
                   const now = player.getCurrentTime();
-                  if (Math.abs(now - lastPollTime) > 1.8) {
+                  // 偵測非預期跳轉(理論上已被擋,這裡當作最後一道防線):強制彈回最遠已看位置
+                  if (now - lastPollTime > 1.8) {
+                    player.seekTo(maxWatchedTime, true);
                     target.dispatchEvent(new Event('seeked'));
+                    lastPollTime = maxWatchedTime;
+                    target.dispatchEvent(new Event('timeupdate'));
+                    return;
                   }
                   lastPollTime = now;
+                  if (now > maxWatchedTime) maxWatchedTime = now;
                   target.dispatchEvent(new Event('timeupdate'));
                 }, 1000);
               }
             } else {
+              isPlaying = false;
               if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
               if (e.data === YT.PlayerState.PAUSED) {
                 target.dispatchEvent(new Event('pause'));
               } else if (e.data === YT.PlayerState.ENDED) {
+                maxWatchedTime = player.getDuration();
                 target.dispatchEvent(new Event('ended'));
               }
             }
@@ -79,6 +103,34 @@ const App = (function () {
     });
 
     return target;
+  }
+
+  // 自訂播放器控制列(取代 YouTube 原生控制列,拿掉可拖動的進度條)
+  function attachCustomYTControls(video, wrapId) {
+    const wrap = document.getElementById(wrapId);
+    if (!wrap) return;
+    const btnPlay = wrap.querySelector('.ytc-play');
+    const btnMute = wrap.querySelector('.ytc-mute');
+    const timeEl = wrap.querySelector('.ytc-time');
+    const barFill = wrap.querySelector('.ytc-bar-fill');
+    let muted = false;
+
+    btnPlay.addEventListener('click', () => {
+      if (video.isPlayingNow()) video.pause(); else video.play();
+    });
+    btnMute.addEventListener('click', () => {
+      muted = !muted;
+      btnMute.textContent = muted ? '🔇' : '🔊';
+      muted ? video.mute() : video.unmute();
+    });
+    video.addEventListener('play', () => { btnPlay.textContent = '⏸'; });
+    video.addEventListener('pause', () => { btnPlay.textContent = '▶'; });
+    video.addEventListener('ended', () => { btnPlay.textContent = '↺'; });
+    video.addEventListener('timeupdate', () => {
+      const dur = video.duration || 0;
+      timeEl.textContent = `${formatSec(video.currentTime)} / ${formatSec(dur)}`;
+      if (barFill && dur) barFill.style.width = Math.min(100, (video.currentTime / dur) * 100) + '%';
+    });
   }
 
   // ===== Toast =====
@@ -1006,7 +1058,18 @@ const App = (function () {
 
     const videoBlock = hasVideo ? `
       ${ytId
-        ? `<div id="course-video" data-yt-id="${ytId}" style="width:100%; aspect-ratio:16/9; border-radius:12px; background:#000; overflow:hidden;"></div>`
+        ? `<div id="ytc-wrap" style="position:relative;">
+             <div id="course-video" data-yt-id="${ytId}" style="width:100%; aspect-ratio:16/9; border-radius:12px 12px 0 0; background:#000; overflow:hidden; pointer-events:none;"></div>
+             <div style="background:#1a1a1a; border-radius:0 0 12px 12px; padding:10px 14px; display:flex; align-items:center; gap:14px;">
+               <button class="ytc-play" type="button" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer; width:28px;">▶</button>
+               <button class="ytc-mute" type="button" style="background:none; border:none; color:#fff; font-size:16px; cursor:pointer; width:24px;">🔊</button>
+               <span class="ytc-time" style="color:#ccc; font-size:13px; min-width:100px;">0:00 / 0:00</span>
+               <div style="flex:1; height:5px; background:#444; border-radius:3px; overflow:hidden; pointer-events:none;">
+                 <div class="ytc-bar-fill" style="width:0%; height:100%; background:#e04b4b;"></div>
+               </div>
+             </div>
+             <div style="font-size:11px; color:var(--text-light); margin-top:4px;">🔒 為確保觀看紀錄真實，本影片進度條無法拖動快轉，請完整觀看。</div>
+           </div>`
         : `<video id="course-video" controls preload="metadata"
              style="width:100%; max-height:480px; border-radius:12px; background:#000;"
              src="${videoCfg.url}"></video>`}
@@ -1182,13 +1245,18 @@ const App = (function () {
     const el = document.getElementById('course-video');
     if (!el) return;
 
-    const video = (el.tagName === 'DIV' && el.dataset.ytId)
-      ? createYouTubeController('course-video', el.dataset.ytId)
-      : el;
-    currentVideoController = video;
-
     const prog = Data.getProgress(empId, courseId);
     let lastTime = prog.videoLastPosition || 0;
+    // 已看過的最遠位置,至少要有「累積觀看秒數」跟「上次播放位置」兩者中較大的一個,
+    // 避免使用者重新整理頁面後,續播機制反而被「防跳關」鎖住播不回去
+    const initialMaxWatched = Math.max(prog.videoWatchedSeconds || 0, lastTime);
+
+    const video = (el.tagName === 'DIV' && el.dataset.ytId)
+      ? createYouTubeController('course-video', el.dataset.ytId, initialMaxWatched)
+      : el;
+    currentVideoController = video;
+    if (el.tagName === 'DIV') attachCustomYTControls(video, 'ytc-wrap');
+
     let segStart = null;
     let lastFlush = 0;
     let playCount = 0;
@@ -1321,10 +1389,15 @@ const App = (function () {
     `;
     area.querySelectorAll('.bm-time').forEach(el => {
       el.addEventListener('click', () => {
-        if (currentVideoController) {
-          currentVideoController.currentTime = parseFloat(el.dataset.time);
-          currentVideoController.play();
+        if (!currentVideoController) return;
+        const target = parseFloat(el.dataset.time);
+        if (typeof currentVideoController.requestSeek === 'function') {
+          const ok = currentVideoController.requestSeek(target);
+          if (!ok) toast('這個書籤位置還沒真正看過,已跳到目前看過的最遠位置', 'error');
+        } else {
+          currentVideoController.currentTime = target;
         }
+        currentVideoController.play();
       });
     });
     area.querySelectorAll('.bm-del').forEach(btn => {
