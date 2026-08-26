@@ -539,9 +539,9 @@ const App = (function () {
     if (!section) return;
 
     const groups = [
+      { key: 'tf',     label: '⭕ 是非題', items: [] },
       { key: 'single', label: '📝 選擇題', items: [] },
-      { key: 'multi',  label: '☑️ 多選題', items: [] },
-      { key: 'tf',     label: '⭕ 是非題', items: [] }
+      { key: 'multi',  label: '☑️ 多選題', items: [] }
     ];
     qs.forEach((q, qi) => {
       const g = groups.find(g => g.key === (q.type || 'single'));
@@ -1856,9 +1856,9 @@ const App = (function () {
   function renderFinalQuiz(role) {
     const qs = FINAL_QUIZ_BANK[role] || [];
     const groups = [
+      { key: 'tf',     label: '⭕ 是非題', items: [] },
       { key: 'single', label: '📝 選擇題', items: [] },
-      { key: 'multi',  label: '☑️ 多選題', items: [] },
-      { key: 'tf',     label: '⭕ 是非題', items: [] }
+      { key: 'multi',  label: '☑️ 多選題', items: [] }
     ];
     qs.forEach((q, qi) => {
       const g = groups.find(g => g.key === (q.type || 'single'));
