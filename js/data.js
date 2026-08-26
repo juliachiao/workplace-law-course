@@ -67,6 +67,13 @@ const Data = (function () {
       set(KEYS.VIDEO_CONFIG, {
         infosec: { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' }
       });
+    } else {
+      // 自動校正：不論瀏覽器裡存的是不是舊版本機路徑,一律修正為最新的 YouTube 網址
+      const vc = get(KEYS.VIDEO_CONFIG, {});
+      if (!vc.infosec || !/youtu/.test(vc.infosec.url || '')) {
+        vc.infosec = { ...(vc.infosec || {}), url: 'https://youtu.be/6alE9ARHadI', title: vc.infosec?.title || '資訊安全通識教材' };
+        set(KEYS.VIDEO_CONFIG, vc);
+      }
     }
   }
 
