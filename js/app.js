@@ -113,6 +113,7 @@ const App = (function () {
     if (!wrap) return;
     const btnPlay = wrap.querySelector('.ytc-play');
     const btnMute = wrap.querySelector('.ytc-mute');
+    const btnFs = wrap.querySelector('.ytc-fullscreen');
     const timeEl = wrap.querySelector('.ytc-time');
     const barFill = wrap.querySelector('.ytc-bar-fill');
     let muted = false;
@@ -125,6 +126,16 @@ const App = (function () {
       btnMute.textContent = muted ? '🔇' : '🔊';
       muted ? video.mute() : video.unmute();
     });
+    if (btnFs) {
+      btnFs.addEventListener('click', () => {
+        const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+        if (isFs) {
+          (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+        } else {
+          (wrap.requestFullscreen || wrap.webkitRequestFullscreen)?.call(wrap);
+        }
+      });
+    }
     video.addEventListener('play', () => { btnPlay.textContent = '⏸'; });
     video.addEventListener('pause', () => { btnPlay.textContent = '▶'; });
     video.addEventListener('ended', () => { btnPlay.textContent = '↺'; });
@@ -1060,7 +1071,13 @@ const App = (function () {
 
     const videoBlock = hasVideo ? `
       ${ytId
-        ? `<div id="ytc-wrap" style="position:relative;">
+        ? `<style>
+             #ytc-wrap:fullscreen { display:flex; flex-direction:column; height:100vh; background:#000; }
+             #ytc-wrap:-webkit-full-screen { display:flex; flex-direction:column; height:100vh; background:#000; }
+             #ytc-wrap:fullscreen #course-video,
+             #ytc-wrap:-webkit-full-screen #course-video { flex:1 1 auto; height:auto; aspect-ratio:unset; border-radius:0; }
+           </style>
+           <div id="ytc-wrap" style="position:relative;">
              <div id="course-video" data-yt-id="${ytId}" style="width:100%; aspect-ratio:16/9; border-radius:12px 12px 0 0; background:#000; overflow:hidden; pointer-events:none;"></div>
              <div style="background:#1a1a1a; border-radius:0 0 12px 12px; padding:10px 14px; display:flex; align-items:center; gap:14px;">
                <button class="ytc-play" type="button" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer; width:28px;">▶</button>
@@ -1069,6 +1086,7 @@ const App = (function () {
                <div style="flex:1; height:5px; background:#444; border-radius:3px; overflow:hidden; pointer-events:none;">
                  <div class="ytc-bar-fill" style="width:0%; height:100%; background:#e04b4b;"></div>
                </div>
+               <button class="ytc-fullscreen" type="button" title="全螢幕" style="background:none; border:none; color:#fff; font-size:17px; cursor:pointer; width:26px;">⛶</button>
              </div>
              <div style="font-size:11px; color:var(--text-light); margin-top:4px;">🔒 為確保觀看紀錄真實，本影片進度條無法拖動快轉，請完整觀看。</div>
            </div>`
