@@ -65,7 +65,7 @@ const Data = (function () {
     if (!get(KEYS.PROGRESS, null)) set(KEYS.PROGRESS, {});
     if (!get(KEYS.VIDEO_CONFIG, null)) {
       set(KEYS.VIDEO_CONFIG, {
-        infosec: { url: 'videos/infosec.mp4', title: '資訊安全通識教材' }
+        infosec: { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' }
       });
     }
   }
