@@ -538,34 +538,49 @@ const App = (function () {
     const section = document.getElementById('final-exam-section');
     if (!section) return;
 
-    const questionHTML = qs.map((q, i) => {
-      const isMulti = q.type === 'multi';
-      let isCorrect, userPickedText;
-      if (isMulti) {
-        const picked = Array.from(document.querySelectorAll(`input[name="fq${i}"]:checked`)).map(el => parseInt(el.value)).sort();
-        const answer = [...q.a].sort();
-        isCorrect = picked.length === answer.length && picked.every((v, idx) => v === answer[idx]);
-      } else {
-        const picked = document.querySelector(`input[name="fq${i}"]:checked`);
-        const ua = picked ? parseInt(picked.value) : null;
-        isCorrect = ua === q.a;
-      }
-      const correctSet = isMulti ? q.a : [q.a];
-      const optionsHTML = q.opts.map((opt, oi) => {
-        let cls = 'result-opt';
-        let icon = '○';
-        if (correctSet.includes(oi)) { cls += ' result-opt-correct'; icon = '✓'; }
-        return `<div class="${cls}">${icon} ${opt}</div>`;
-      }).join('');
-      return `
-        <div class="quiz-result-item ${isCorrect ? 'result-correct' : 'result-wrong'}">
-          <div class="result-q-header">
-            <span class="result-badge">${isCorrect ? '✓ 答對' : '✗ 答錯'}</span>
-            <span class="result-q-text">Q${i + 1}. ${q.q}</span>
-          </div>
-          <div class="result-options">${optionsHTML}</div>
-        </div>`;
-    }).join('');
+    const groups = [
+      { key: 'single', label: '📝 選擇題', items: [] },
+      { key: 'multi',  label: '☑️ 多選題', items: [] },
+      { key: 'tf',     label: '⭕ 是非題', items: [] }
+    ];
+    qs.forEach((q, qi) => {
+      const g = groups.find(g => g.key === (q.type || 'single'));
+      g.items.push({ q, qi });
+    });
+
+    const questionHTML = groups.filter(g => g.items.length).map(g => `
+      <div class="quiz-group">
+        <h4 class="quiz-group-title">${g.label}（共 ${g.items.length} 題）</h4>
+        ${g.items.map(({ q, qi }, localIdx) => {
+          const isMulti = q.type === 'multi';
+          let isCorrect;
+          if (isMulti) {
+            const picked = Array.from(document.querySelectorAll(`input[name="fq${qi}"]:checked`)).map(el => parseInt(el.value)).sort();
+            const answer = [...q.a].sort();
+            isCorrect = picked.length === answer.length && picked.every((v, idx) => v === answer[idx]);
+          } else {
+            const picked = document.querySelector(`input[name="fq${qi}"]:checked`);
+            const ua = picked ? parseInt(picked.value) : null;
+            isCorrect = ua === q.a;
+          }
+          const correctSet = isMulti ? q.a : [q.a];
+          const optionsHTML = q.opts.map((opt, oi) => {
+            let cls = 'result-opt';
+            let icon = '○';
+            if (correctSet.includes(oi)) { cls += ' result-opt-correct'; icon = '✓'; }
+            return `<div class="${cls}">${icon} ${opt}</div>`;
+          }).join('');
+          return `
+            <div class="quiz-result-item ${isCorrect ? 'result-correct' : 'result-wrong'}">
+              <div class="result-q-header">
+                <span class="result-badge">${isCorrect ? '✓ 答對' : '✗ 答錯'}</span>
+                <span class="result-q-text">Q${localIdx + 1}. ${q.q}</span>
+              </div>
+              <div class="result-options">${optionsHTML}</div>
+            </div>`;
+        }).join('')}
+      </div>
+    `).join('');
 
     section.innerHTML = `
       <div class="quiz-score-card ${passed ? 'score-pass' : 'score-fail'}">
@@ -1840,22 +1855,37 @@ const App = (function () {
   // ===== 總測驗：渲染與計分（支援單選／是非／多選）=====
   function renderFinalQuiz(role) {
     const qs = FINAL_QUIZ_BANK[role] || [];
-    return qs.map((q, qi) => {
-      const isMulti = q.type === 'multi';
-      return `
-      <div class="quiz-question">
-        <div class="q-text">Q${qi+1}. ${q.q}${isMulti ? ' <span style="color:var(--brand); font-size:12px;">（多選）</span>' : ''}</div>
-        <div class="quiz-options">
-          ${q.opts.map((o, oi) => `
-            <label class="quiz-option">
-              <input type="${isMulti ? 'checkbox' : 'radio'}" name="fq${qi}" value="${oi}" style="margin-right:8px;" />
-              <span>${o}</span>
-            </label>
-          `).join('')}
-        </div>
+    const groups = [
+      { key: 'single', label: '📝 選擇題', items: [] },
+      { key: 'multi',  label: '☑️ 多選題', items: [] },
+      { key: 'tf',     label: '⭕ 是非題', items: [] }
+    ];
+    qs.forEach((q, qi) => {
+      const g = groups.find(g => g.key === (q.type || 'single'));
+      g.items.push({ q, qi });
+    });
+
+    return groups.filter(g => g.items.length).map(g => `
+      <div class="quiz-group">
+        <h4 class="quiz-group-title">${g.label}（共 ${g.items.length} 題）</h4>
+        ${g.items.map(({ q, qi }, localIdx) => {
+          const isMulti = q.type === 'multi';
+          return `
+          <div class="quiz-question">
+            <div class="q-text">Q${localIdx + 1}. ${q.q}${isMulti ? ' <span style="color:var(--brand); font-size:12px;">（多選）</span>' : ''}</div>
+            <div class="quiz-options">
+              ${q.opts.map((o, oi) => `
+                <label class="quiz-option">
+                  <input type="${isMulti ? 'checkbox' : 'radio'}" name="fq${qi}" value="${oi}" style="margin-right:8px;" />
+                  <span>${o}</span>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        }).join('')}
       </div>
-    `;
-    }).join('');
+    `).join('');
   }
 
   function gradeFinalQuiz(role) {
