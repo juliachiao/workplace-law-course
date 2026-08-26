@@ -16,6 +16,7 @@ const Data = (function () {
     PROGRESS: 'tp_progress',
     ADMINS: 'tp_admins',
     VIDEO_CONFIG: 'tp_video_config',
+    CONFIG_VERSION: 'tp_config_version',
     DEADLINE: 'tp_deadline',
     ANNOUNCEMENTS: 'tp_announcements',
     NOTICES_READ: 'tp_notices_read',
@@ -63,17 +64,23 @@ const Data = (function () {
     }
     if (!get(KEYS.LOGS, null)) set(KEYS.LOGS, []);
     if (!get(KEYS.PROGRESS, null)) set(KEYS.PROGRESS, {});
-    if (!get(KEYS.VIDEO_CONFIG, null)) {
-      set(KEYS.VIDEO_CONFIG, {
-        infosec: { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' }
-      });
-    } else {
-      // 自動校正：不論瀏覽器裡存的是不是舊版本機路徑,一律修正為最新的 YouTube 網址
-      const vc = get(KEYS.VIDEO_CONFIG, {});
-      if (!vc.infosec || !/youtu/.test(vc.infosec.url || '')) {
-        vc.infosec = { ...(vc.infosec || {}), url: 'https://youtu.be/6alE9ARHadI', title: vc.infosec?.title || '資訊安全通識教材' };
-        set(KEYS.VIDEO_CONFIG, vc);
-      }
+    // ===== 內容版本控管 =====
+    // 每次想強制讓所有訪客（不管新舊瀏覽器）都套用最新的影片設定,
+    // 只要把下面這個數字加 1,存檔重新上傳,大家打開網站就會自動套用最新版本。
+    const CURRENT_CONFIG_VERSION = 2;
+
+    // 這裡列出「目前最新、正確」的影片設定,以後新增/更換課程影片,直接改這裡
+    const LATEST_VIDEO_CONFIG = {
+      infosec: { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' }
+    };
+
+    const storedVersion = get(KEYS.CONFIG_VERSION, 0);
+    if (storedVersion < CURRENT_CONFIG_VERSION) {
+      // 版本落後,強制覆蓋成最新設定,確保所有人看到的都一致
+      set(KEYS.VIDEO_CONFIG, LATEST_VIDEO_CONFIG);
+      set(KEYS.CONFIG_VERSION, CURRENT_CONFIG_VERSION);
+    } else if (!get(KEYS.VIDEO_CONFIG, null)) {
+      set(KEYS.VIDEO_CONFIG, LATEST_VIDEO_CONFIG);
     }
   }
 
