@@ -1210,13 +1210,14 @@ body::after {
   z-index: 2000;
   box-shadow: 0 6px 26px rgba(0,0,0,0.2);
   opacity: 0;
+  pointer-events: none;
   transform: translateY(-18px) scale(0.94);
   transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
   font-size: 14px;
   max-width: 320px;
 }
 
-.toast.show   { opacity: 1; transform: translateY(0) scale(1); }
+.toast.show   { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
 .toast.success { background: linear-gradient(135deg, #2e7a2e, #3a9a3a); }
 .toast.error   { background: linear-gradient(135deg, #a83030, #c94040); }
 
