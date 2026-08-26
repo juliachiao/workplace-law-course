@@ -313,7 +313,8 @@ const App = (function () {
     intro:        renderIntro,
     guide:        renderGuide,
     wronganswers: renderWrongAnswers,
-    course:       renderCourse
+    course:       renderCourse,
+    final_exam:   renderFinalExam
   };
 
   function renderRoute(route, ...args) {
@@ -380,6 +381,32 @@ const App = (function () {
     const overall = Data.getEmployeeOverallProgress(user.empId);
     const myCourses = Data.COURSES[user.role] || [];
     const isManager = user.role === 'manager';
+
+    const finalLock = getFinalExamLockStatus(user.empId, user.role);
+    const finalProg = Data.getProgress(user.empId, 'final_' + user.role);
+    let finalBadge = '';
+    if (finalProg.completed) {
+      finalBadge = `<span class="menu-card-badge badge-done">✓ 已完成（${finalProg.quizScore} 分）</span>`;
+    } else if (finalLock.locked) {
+      finalBadge = `<span class="menu-card-badge" style="background:#eee; color:#888;">🔒 尚未解鎖</span>`;
+    }
+    const finalExamCard = `
+      <div class="menu-card" data-final-exam="1" style="--bc:#b8860b; --bbg:#fdf6e3; opacity:${finalLock.locked && !finalProg.completed ? '0.65' : '1'};">
+        <div class="menu-card-left">
+          <div class="menu-card-icon">🎓</div>
+        </div>
+        <div class="menu-card-body">
+          <div class="menu-card-title-row">
+            <span class="menu-card-title">總測驗</span>
+            ${finalBadge}
+          </div>
+          <div class="menu-card-desc">${finalLock.locked
+            ? `完成以上所有單元後解鎖：尚差「${finalLock.incomplete.map(c => c.title).join('、')}」`
+            : '完成所有單元課程！可以進行總測驗，檢核整體學習成效'}</div>
+        </div>
+        <div class="menu-card-arrow">${finalLock.locked && !finalProg.completed ? '🔒' : '→'}</div>
+      </div>
+    `;
 
     const totalStudySec = myCourses.reduce((sum, c) => sum + (Data.getProgress(user.empId, c.id).studySeconds || 0), 0);
     const quizScores = myCourses.map(c => Data.getProgress(user.empId, c.id).quizScore).filter(s => s != null);
@@ -448,12 +475,112 @@ const App = (function () {
           <h2 class="menu-section-title">課程選單</h2>
           <p class="menu-section-sub">點擊課程卡片進入學習</p>
         </div>
-        <div class="menu-grid">${courseCards}</div>
+        <div class="menu-grid">${courseCards}${finalExamCard}</div>
       </div>
     `;
 
     main.querySelectorAll('.menu-card[data-course-id]').forEach(el => {
       el.addEventListener('click', () => renderRoute('cover', el.dataset.courseId, user.role));
+    });
+
+    const feCard = main.querySelector('.menu-card[data-final-exam]');
+    if (feCard) {
+      feCard.addEventListener('click', () => renderRoute('final_exam', user.role));
+    }
+  }
+
+  // ===== 總測驗頁 =====
+  function renderFinalExam(role) {
+    const user = Data.getCurrentUser();
+    const main = document.getElementById('main-content');
+    const courseTitle = role === 'manager' ? '主管進階課' : '員工必修課';
+    const lock = getFinalExamLockStatus(user.empId, role);
+
+    if (lock.locked) {
+      main.innerHTML = `
+        <a class="back-link" onclick="App.go('menu')" style="margin-top:0; margin-bottom:20px;">← 回課程選單</a>
+        <h1 class="page-title" style="font-size:32px;">🎓 ${courseTitle}總測驗</h1>
+        <div style="background:var(--card-bg); padding:60px; border-radius:16px; text-align:center; margin-top:20px;">
+          <div style="font-size:60px;">🔒</div>
+          <h3 style="margin:20px 0;">尚未解鎖</h3>
+          <p style="color:var(--text-light);">請先完成以下單元課程，才能進行總測驗：</p>
+          <p style="margin-top:12px; font-weight:600;">${lock.incomplete.map(c => c.title).join('、')}</p>
+        </div>
+      `;
+      return;
+    }
+
+    const qs = FINAL_QUIZ_BANK[role] || [];
+    main.innerHTML = `
+      <a class="back-link" onclick="App.go('menu')" style="margin-top:0; margin-bottom:20px;">← 回課程選單</a>
+      <h1 class="page-title" style="font-size:32px;">🎓 ${courseTitle}總測驗</h1>
+      <p class="page-subtitle">共 ${qs.length} 題　｜　80 分通過　｜　預定學習時間 20 分鐘</p>
+      <div class="course-content" id="final-exam-section">
+        ${renderFinalQuiz(role)}
+        <div style="text-align:right; margin-top:16px;">
+          <button class="btn btn-primary" id="submit-final-exam">送出總測驗</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('submit-final-exam').addEventListener('click', () => {
+      const score = gradeFinalQuiz(role);
+      Data.setProgress(user.empId, 'final_' + role, { quizScore: score, completed: score >= 80 });
+      Data.addLog(user.empId, 'final_exam_submitted', `總測驗(${role}) 得 ${score} 分`);
+      renderFinalExamResults(role, score);
+      document.getElementById('final-exam-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function renderFinalExamResults(role, score) {
+    const qs = FINAL_QUIZ_BANK[role] || [];
+    const passed = score >= 80;
+    const section = document.getElementById('final-exam-section');
+    if (!section) return;
+
+    const questionHTML = qs.map((q, i) => {
+      const isMulti = q.type === 'multi';
+      let isCorrect, userPickedText;
+      if (isMulti) {
+        const picked = Array.from(document.querySelectorAll(`input[name="fq${i}"]:checked`)).map(el => parseInt(el.value)).sort();
+        const answer = [...q.a].sort();
+        isCorrect = picked.length === answer.length && picked.every((v, idx) => v === answer[idx]);
+      } else {
+        const picked = document.querySelector(`input[name="fq${i}"]:checked`);
+        const ua = picked ? parseInt(picked.value) : null;
+        isCorrect = ua === q.a;
+      }
+      const correctSet = isMulti ? q.a : [q.a];
+      const optionsHTML = q.opts.map((opt, oi) => {
+        let cls = 'result-opt';
+        let icon = '○';
+        if (correctSet.includes(oi)) { cls += ' result-opt-correct'; icon = '✓'; }
+        return `<div class="${cls}">${icon} ${opt}</div>`;
+      }).join('');
+      return `
+        <div class="quiz-result-item ${isCorrect ? 'result-correct' : 'result-wrong'}">
+          <div class="result-q-header">
+            <span class="result-badge">${isCorrect ? '✓ 答對' : '✗ 答錯'}</span>
+            <span class="result-q-text">Q${i + 1}. ${q.q}</span>
+          </div>
+          <div class="result-options">${optionsHTML}</div>
+        </div>`;
+    }).join('');
+
+    section.innerHTML = `
+      <div class="quiz-score-card ${passed ? 'score-pass' : 'score-fail'}">
+        <div class="score-big">${score} 分</div>
+        <div class="score-detail">${passed ? '通過 ✓ 恭喜完成總測驗！' : '未通過，可重新作答練習'}</div>
+      </div>
+      ${questionHTML}
+      <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
+        <button class="btn btn-secondary" id="retake-final-exam">🔄 重新作答</button>
+        <button class="btn btn-primary" onclick="App.go('menu')">回課程選單 →</button>
+      </div>
+    `;
+
+    document.getElementById('retake-final-exam').addEventListener('click', () => {
+      renderRoute('final_exam', role);
     });
   }
 
@@ -1613,6 +1740,76 @@ const App = (function () {
     ]
   };
 
+  // ===== 總測驗題庫 =====
+  const FINAL_QUIZ_BANK = {
+    manager: [
+      // ---- 1-10：職場霸凌預防舉措 ----
+      { q: '主管在會議中對下屬說了一次極為羞辱人格的話，事後辯稱「只罵一次不算霸凌」。根據新法紅線，下列敘述何者正確？',
+        opts: ['只要不是持續發生，就不構成霸凌', '只要造成身心危害，單次嚴重侮辱即可成立霸凌', '必須累積三次以上才能認定', '只有肢體行為才算霸凌'], a: 1 },
+      { q: '主管僅從第三方口中聽聞疑似霸凌情事，尚未收到任何正式申訴書。此時公司的法定義務為何？',
+        opts: ['等到收到正式申訴書才需處理', '無須處理，除非受害人主動要求', '只要「知悉」即須主動釐清事實並採取措施', '可交由當事人私下和解即可'], a: 2 },
+      { q: '100 人以上企業組成霸凌調查小組時，外部專業人士的比例規定為何？',
+        opts: ['不得少於 1/4', '不得少於 1/3', '不得少於 1/2', '沒有比例限制'], a: 2 },
+      { q: '若企業未訂定霸凌防治措施，主管機關最高可開罰多少？',
+        opts: ['15 萬元', '75 萬元', '150 萬元', '300 萬元'], a: 1 },
+      { q: '若霸凌導致勞工發生職業病，企業最高可能面臨的罰鍰為何？',
+        opts: ['75 萬元', '100 萬元', '300 萬元', '500 萬元'], a: 2 },
+      { q: '調查期間，主管將提起申訴的員工調往偏遠分公司，理由是「業務需要」。下列敘述何者正確？',
+        opts: ['只要理由合理，就不算違法', '這是違法的報復行為，調動命令一律無效', '只要沒有減薪，就不構成報復', '主管有權自行決定人事調動，不受限制'], a: 1 },
+      { q: '關於霸凌案件的和解，下列敘述何者正確？',
+        opts: ['主管可主動安排雙方見面協調，強制達成共識', '只要 HR 在場見證，強制和解就合法', '和解的前提是申訴人完全自願，不得強迫', '500 人以上企業可用心理諮商取代調查'], a: 2 },
+      { q: '員工在職期間遭受霸凌，之後離職，關於申訴時效下列何者正確？',
+        opts: ['離職即喪失申訴權利', '離職之日起 1 年內仍可提起申訴', '只能在霸凌發生後 3 個月內申訴', '簽署離職同意書即視為放棄申訴權'], a: 1 },
+      { q: '公司平時未落實出勤與防治紀錄，訴訟時拿不出相關文件，依《勞動事件法》舉證責任轉換規定，最可能的後果為何？',
+        opts: ['法院會要求勞工補足證據', '法院得直接認定勞工主張為真實，企業等同自動敗訴', '沒有實質影響', '公司可主張員工誣告免責'], a: 1 },
+      { q: '企業要真正落實霸凌防治，下列做法何者最根本？',
+        opts: ['出事後再臨時擬定處理流程', '準備好罰鍰預算，出事直接繳款了事', '將霸凌定義與處理流程明訂於工作規則、建立多元申訴管道並定期辦理教育訓練', '交由各部門主管自行決定是否處理'], a: 2 },
+      // ---- 11-20：職場性騷擾防治 ----
+      { q: '主管與下屬在下班後的私人聚會中發生疑似性騷擾情事。根據 2026 年新法，公司應如何處理？',
+        opts: ['非工作時間發生，公司無管轄權', '只要是私人聚會就無須受理', '只要屬於同一單位或業務往來對象間的持續性騷擾，公司仍負處置義務', '只有在辦公室內發生才需要處理'], a: 2 },
+      { q: '主管利用職務上的指揮監督權力對下屬進行性騷擾，法律上稱為：',
+        opts: ['一般性騷擾', '權勢性騷擾', '職場霸凌', '一般糾紛'], a: 1 },
+      { q: '針對權勢性騷擾，法院最高可判賠幾倍的懲罰性賠償金？',
+        opts: ['1 倍', '2 倍', '3 倍', '5 倍'], a: 2 },
+      { q: '規模超過百人的企業，性騷擾申訴調查小組的組成有何法定要求？',
+        opts: ['全部由內部資深主管組成即可', '須包含具備性別意識的外部專業人士', '只需法務代表出席', '由受害者的直屬主管主導調查'], a: 1 },
+      { q: '依新法規定，雇主對性騷擾申訴人至少應提供幾次心理諮商協助？',
+        opts: ['1 次', '2 次', '3 次', '5 次'], a: 1 },
+      { q: '「知悉即啟動」的雙軌原則是指：',
+        opts: ['一定要有正式申訴書才能啟動程序', '不論有無正式申訴，雇主知悉即須啟動處置程序', '僅能進行非正式的口頭了解', '行為人否認時，公司即可終止調查'], a: 1 },
+      { q: '調查期間，下列哪項做法屬於違法的報復行為？',
+        opts: ['暫時停止行為人職務', '調整行為人辦公位置', '將申訴人調職並減薪', '調整行為人業務內容'], a: 2 },
+      { q: '雇主認定性騷擾情節重大，欲行使不經預告解僱權，法定時效為知悉之日起幾日內？',
+        opts: ['7 日', '15 日', '30 日', '60 日'], a: 2 },
+      { q: '雇主知悉性騷擾情事卻未採取立即有效補救措施，行政罰鍰上限為多少？',
+        opts: ['50 萬元', '100 萬元', '150 萬元', '200 萬元'], a: 1 },
+      { q: '若雇主無法證明已盡防治責任，除罰鍰外，還可能面臨什麼民事後果？',
+        opts: ['公司執照被吊銷', '負責人一律入獄', '與行為人連帶負擔民事損害賠償', '無須承擔額外責任'], a: 2 },
+      // ---- 21-25：是非題（綜合霸凌＋性騷擾影片內容）----
+      { type: 'tf', q: '職場霸凌的認定必須要有持續發生的行為，單次事件絕對不構成霸凌。',
+        opts: ['是', '否'], a: 1 },
+      { type: 'tf', q: '100 人以上企業的霸凌調查小組，外部專業人士比例不得少於二分之一。',
+        opts: ['是', '否'], a: 0 },
+      { type: 'tf', q: '只要沒有收到正式申訴書，主管就不需要啟動任何調查程序。',
+        opts: ['是', '否'], a: 1 },
+      { type: 'tf', q: '性騷擾申訴調查期間，公司可以將申訴人調職並減薪，以降低雙方接觸機會。',
+        opts: ['是', '否'], a: 1 },
+      { type: 'tf', q: '雇主知悉性騷擾情事卻未採取立即有效補救措施，最高可處 100 萬元行政罰鍰。',
+        opts: ['是', '否'], a: 0 },
+      // ---- 26-30：多選題（可多選，綜合霸凌＋性騷擾影片內容）----
+      { type: 'multi', q: '下列哪些屬於「職場霸凌五大構成要件」的內容？（可多選）',
+        opts: ['發生於勞動場所', '利用職務權勢關係', '逾越業務合理範圍', '造成受害者身心健康損害', '一定要有肢體衝突才算'], a: [0,1,2,3] },
+      { type: 'multi', q: '依新法規定，企業在處理職場霸凌或性騷擾申訴案件時，下列哪些做法是正確的？（可多選）',
+        opts: ['只要「知悉」即須啟動處置程序', '調查過程應保密，避免二次傷害', '為求盡快結案，可強制雙方和解', '每一次警告與評估事由都要完整記錄', '為防止誤報，可先對申訴人進行不利處分'], a: [0,1,3] },
+      { type: 'multi', q: '關於霸凌／性騷擾案件申訴人的保護措施，下列哪些正確？（可多選）',
+        opts: ['調查期間可暫停被申訴人職權', '可提供或轉介心理諮商資源給申訴人', '可強制申訴人先請假且不支薪', '若查無實據，須補發停職期間薪資', '可將申訴人調往外縣市分公司，不論其意願'], a: [0,1,3] },
+      { type: 'multi', q: '下列哪些是雇主未盡防治義務時，可能面臨的法律後果？（可多選）',
+        opts: ['行政罰鍰', '與行為人連帶負擔民事損害賠償', '企業名稱與負責人姓名被強制公布', '自動獲得減刑或減輕處分優惠', '訴訟時舉證責任轉換由雇主負擔'], a: [0,1,2,4] },
+      { type: 'multi', q: '關於霸凌／性騷擾案件的申訴時效與程序時限，下列哪些正確？（可多選）',
+        opts: ['霸凌申訴時效為行為終了起 3 年內', '性騷擾不經預告解僱權須於知悉之日起 30 日內行使', '調查程序原則上應於 2 個月內結案', '只要超過任何時效，當事人即完全喪失法律保護', '在職期間發生的霸凌，離職後 1 年內仍可申訴'], a: [0,1,2,4] }
+    ]
+  };
+
   function renderQuiz(courseId) {
     const qs = QUIZ_BANK[courseId] || [];
     return qs.map((q, qi) => `
@@ -1639,6 +1836,52 @@ const App = (function () {
     });
     return qs.length ? Math.round(correct * 100 / qs.length) : 0;
   }
+
+  // ===== 總測驗：渲染與計分（支援單選／是非／多選）=====
+  function renderFinalQuiz(role) {
+    const qs = FINAL_QUIZ_BANK[role] || [];
+    return qs.map((q, qi) => {
+      const isMulti = q.type === 'multi';
+      return `
+      <div class="quiz-question">
+        <div class="q-text">Q${qi+1}. ${q.q}${isMulti ? ' <span style="color:var(--brand); font-size:12px;">（多選）</span>' : ''}</div>
+        <div class="quiz-options">
+          ${q.opts.map((o, oi) => `
+            <label class="quiz-option">
+              <input type="${isMulti ? 'checkbox' : 'radio'}" name="fq${qi}" value="${oi}" style="margin-right:8px;" />
+              <span>${o}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function gradeFinalQuiz(role) {
+    const qs = FINAL_QUIZ_BANK[role] || [];
+    let correct = 0;
+    qs.forEach((q, qi) => {
+      if (q.type === 'multi') {
+        const picked = Array.from(document.querySelectorAll(`input[name="fq${qi}"]:checked`)).map(el => parseInt(el.value)).sort();
+        const answer = [...q.a].sort();
+        const match = picked.length === answer.length && picked.every((v, idx) => v === answer[idx]);
+        if (match) correct++;
+      } else {
+        const picked = document.querySelector(`input[name="fq${qi}"]:checked`);
+        if (picked && parseInt(picked.value) === q.a) correct++;
+      }
+    });
+    return qs.length ? Math.round(correct * 100 / qs.length) : 0;
+  }
+
+  // 檢查該角色所有單元課程是否都已完成
+  function getFinalExamLockStatus(empId, role) {
+    const courses = Data.COURSES[role] || [];
+    const incomplete = courses.filter(c => !Data.getProgress(empId, c.id).completed);
+    return { locked: incomplete.length > 0, incomplete };
+  }
+
 
   function formatTime(iso) {
     if (!iso) return '-';
