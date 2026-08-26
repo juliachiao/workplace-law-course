@@ -785,6 +785,17 @@ body::after {
 
 .quiz-section { margin-top: 28px; }
 
+.quiz-group { margin-bottom: 28px; }
+
+.quiz-group-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--brand, #4a6cf7);
+}
+
 .quiz-question {
   background: #f6f8fb;
   padding: 22px;
