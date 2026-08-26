@@ -67,12 +67,13 @@ const Data = (function () {
     // ===== 內容版本控管 =====
     // 每次想強制讓所有訪客（不管新舊瀏覽器）都套用最新的影片設定,
     // 只要把下面這個數字加 1,存檔重新上傳,大家打開網站就會自動套用最新版本。
-    const CURRENT_CONFIG_VERSION = 3;
+    const CURRENT_CONFIG_VERSION = 4;
 
     // 這裡列出「目前最新、正確」的影片設定,以後新增/更換課程影片,直接改這裡
     const LATEST_VIDEO_CONFIG = {
-      infosec: { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' },
-      pdpa:    { url: 'https://youtu.be/tM3N_2ZEMZo', title: '個資管理與實務教材' }
+      infosec:  { url: 'https://youtu.be/6alE9ARHadI', title: '資訊安全通識教材' },
+      pdpa:     { url: 'https://youtu.be/tM3N_2ZEMZo', title: '個資管理與實務教材' },
+      bullying: { url: 'https://youtu.be/s2jhJCXkCTk', title: '職場霸凌預防舉措教材' }
     };
 
     const storedVersion = get(KEYS.CONFIG_VERSION, 0);
