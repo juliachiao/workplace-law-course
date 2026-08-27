@@ -1439,7 +1439,10 @@ const App = (function () {
     video.addEventListener('play', () => {
       segStart = video.currentTime;
       playCount++;
-      Data.addLog(empId, 'video_play', `▶ 播放: ${course.title} (從 ${formatSec(segStart)})`);
+      // 資料寫入延後到下一個 tick，避免跟按鈕圖示更新搶在同一瞬間執行造成卡頓
+      setTimeout(() => {
+        Data.addLog(empId, 'video_play', `▶ 播放: ${course.title} (從 ${formatSec(segStart)})`);
+      }, 0);
     });
 
     // 暫停或結束: 記錄當前播放區段
@@ -1452,8 +1455,12 @@ const App = (function () {
     }
 
     video.addEventListener('pause', () => {
-      flushSegment();
-      Data.addLog(empId, 'video_pause', `⏸ 暫停於 ${formatSec(video.currentTime)}`);
+      const pausedAt = video.currentTime;
+      // 資料寫入延後到下一個 tick，讓暫停按鈕圖示先完成畫面更新，操作起來才不會感覺卡頓
+      setTimeout(() => {
+        flushSegment();
+        Data.addLog(empId, 'video_pause', `⏸ 暫停於 ${formatSec(pausedAt)}`);
+      }, 0);
     });
 
     // 持續播放: 每 3 秒記錄一次區段
