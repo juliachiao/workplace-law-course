@@ -1994,6 +1994,14 @@ const App = (function () {
     bindNav();
     bindLanding();
     window.addEventListener('beforeunload', flushStudyTimer);
+    if (Data.isUsingFallback && Data.isUsingFallback()) {
+      const warn = document.createElement('div');
+      warn.style.cssText = 'position:relative; background:#c0392b; color:#fff; text-align:center; padding:10px 40px; font-size:13px; z-index:5000;';
+      warn.innerHTML = '⚠️ 目前瀏覽器封鎖了本機儲存功能（常見於 App 內建瀏覽器，如 LINE），示範帳號仍可正常登入使用，但學習進度不會被保存。建議改用 Safari 或 Chrome 開啟本網站。' +
+        '<button type="button" style="position:absolute; right:12px; top:6px; background:none; border:none; color:#fff; font-size:16px; cursor:pointer;">✕</button>';
+      document.body.insertBefore(warn, document.body.firstChild);
+      warn.querySelector('button').addEventListener('click', () => warn.remove());
+    }
     const u = Data.getCurrentUser();
     if (u) enterApp();
   }
