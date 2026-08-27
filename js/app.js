@@ -270,6 +270,15 @@ const App = (function () {
     });
     const backBtn = document.getElementById('back-to-landing');
     if (backBtn) backBtn.addEventListener('click', showLanding);
+
+    // 課程翻轉卡片：點擊或鍵盤 Enter/空白鍵翻面查看詳情
+    document.querySelectorAll('.flip-card').forEach(card => {
+      const toggle = () => card.classList.toggle('flipped');
+      card.addEventListener('click', toggle);
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+    });
   }
 
   // ===== 進入主應用 =====
