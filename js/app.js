@@ -177,6 +177,81 @@ const App = (function () {
         toast('示範資料已重置，請重新登入', 'success');
       }
     });
+
+    // ===== 忘記密碼 =====
+    const loginForm = document.getElementById('employee-login-form');
+    const forgotForm = document.getElementById('forgot-password-form');
+    const fpStep2 = document.getElementById('fp-step2');
+    const fpVerifyBtn = document.getElementById('fp-verify-btn');
+    const fpSubmitBtn = document.getElementById('fp-submit-btn');
+    const fpError = document.getElementById('fp-error');
+    let fpVerifiedEmpId = null;
+
+    function showFpError(msg) {
+      fpError.textContent = msg;
+      fpError.style.display = 'block';
+    }
+    function resetForgotForm() {
+      forgotForm.reset();
+      fpStep2.classList.add('hidden');
+      fpVerifyBtn.classList.remove('hidden');
+      fpSubmitBtn.classList.add('hidden');
+      fpError.style.display = 'none';
+      fpVerifiedEmpId = null;
+      document.getElementById('fp-empId').disabled = false;
+      document.getElementById('fp-email').disabled = false;
+    }
+
+    document.getElementById('goto-forgot-pwd').addEventListener('click', () => {
+      loginForm.classList.add('hidden');
+      resetForgotForm();
+      forgotForm.classList.remove('hidden');
+    });
+    document.getElementById('back-to-login-from-fp').addEventListener('click', () => {
+      forgotForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+    });
+
+    fpVerifyBtn.addEventListener('click', () => {
+      fpError.style.display = 'none';
+      const empId = document.getElementById('fp-empId').value.trim();
+      const email = document.getElementById('fp-email').value.trim().toLowerCase();
+      if (!empId || !email) { showFpError('請輸入員工編號與信箱'); return; }
+      const emp = Data.getEmployee(empId);
+      if (!emp || (emp.email || '').toLowerCase() !== email) {
+        showFpError('員工編號或信箱不正確，請確認後再試一次');
+        return;
+      }
+      if (!emp.active) {
+        showFpError('此帳號已停用，請聯繫系統管理員');
+        return;
+      }
+      fpVerifiedEmpId = empId;
+      document.getElementById('fp-empId').disabled = true;
+      document.getElementById('fp-email').disabled = true;
+      fpStep2.classList.remove('hidden');
+      fpVerifyBtn.classList.add('hidden');
+      fpSubmitBtn.classList.remove('hidden');
+    });
+
+    fpSubmitBtn.addEventListener('click', () => {
+      fpError.style.display = 'none';
+      const p1 = document.getElementById('fp-new-password').value;
+      const p2 = document.getElementById('fp-confirm-password').value;
+      if (!p1 || p1.length < 4) { showFpError('新密碼至少需要 4 碼'); return; }
+      if (p1 !== p2) { showFpError('兩次輸入的密碼不一致'); return; }
+      try {
+        Data.updateEmployee(fpVerifiedEmpId, { password: p1 });
+        toast('密碼已重設成功，請用新密碼登入', 'success');
+        forgotForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        document.getElementById('login-empId').value = fpVerifiedEmpId;
+        document.getElementById('login-password').value = '';
+        document.getElementById('login-password').focus();
+      } catch (e) {
+        showFpError(e.message || '重設失敗，請稍後再試');
+      }
+    });
   }
 
   // ===== 首頁 / 登入頁切換 =====
