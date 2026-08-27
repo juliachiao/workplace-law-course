@@ -1721,7 +1721,7 @@ body::after {
 /* ── Courses ── */
 .landing-courses-sec { padding: 76px 0; background: linear-gradient(180deg, #eef5ff 0%, #e2eefc 100%); }
 .landing-course-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
 }
 .landing-course-card {
   background: #fff; border-radius: var(--radius);
@@ -1763,7 +1763,7 @@ body::after {
 }
 .path-title-emp { background: #e8f0fe; color: var(--primary); }
 .path-title-mgr { background: #fce8eb; color: #b04060; }
-.landing-course-grid-mgr { grid-template-columns: repeat(2, 1fr); max-width: 700px; }
+.landing-course-grid-mgr { grid-template-columns: repeat(2, 1fr); }
 
 /* ── 翻轉卡片 ── */
 .flip-card {
