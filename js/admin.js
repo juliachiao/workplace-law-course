@@ -308,14 +308,90 @@ const Admin = (function () {
         </div>
       </div>
 
+      <div style="display:grid; grid-template-columns: 240px 1fr; gap:20px; margin-bottom:20px;">
+        <div class="stat-card" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <h3 style="margin-bottom:16px; letter-spacing:2px; align-self:flex-start;">🎯 整體完成率</h3>
+          ${renderCompletionDonut(stats.completionRate)}
+        </div>
+        <div class="stat-card">
+          <h3 style="margin-bottom:16px; letter-spacing:2px;">📊 各課程完成率比較</h3>
+          ${renderCourseBarChart()}
+        </div>
+      </div>
+
       <div class="stat-card" style="margin-bottom:20px;">
-        <h3 style="margin-bottom:16px; letter-spacing:2px;">📊 各課程完成情形</h3>
+        <h3 style="margin-bottom:16px; letter-spacing:2px;">📋 各課程完成情形明細</h3>
         ${renderCourseStats()}
       </div>
 
       <div class="stat-card">
         <h3 style="margin-bottom:16px; letter-spacing:2px;">🕒 最近登入紀錄</h3>
         ${renderRecentLogs()}
+      </div>
+    `;
+  }
+
+  // ===== 整體完成率甜甜圈圖 =====
+  function renderCompletionDonut(pct) {
+    const r = 62, cx = 80, cy = 80;
+    const circumference = 2 * Math.PI * r;
+    const offset = circumference * (1 - pct / 100);
+    const color = pct >= 80 ? '#2e8b57' : pct >= 50 ? '#d4941e' : '#c0392b';
+    return `
+      <svg width="160" height="160" viewBox="0 0 160 160">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#eef1f6" stroke-width="16"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="16"
+          stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+          stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"
+          style="transition: stroke-dashoffset 0.6s ease;"/>
+        <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="30" font-weight="700" fill="var(--text-main)">${pct}%</text>
+        <text x="${cx}" y="${cy + 20}" text-anchor="middle" font-size="12" fill="var(--text-light)">全公司完成率</text>
+      </svg>
+    `;
+  }
+
+  // ===== 各課程完成率長條圖 =====
+  function renderCourseBarChart() {
+    const employees = Data.getEmployees();
+    const all = [...Data.COURSES.new_employee.map(c => ({...c, role:'new_employee'})),
+                 ...Data.COURSES.manager.map(c => ({...c, role:'manager'}))];
+
+    const shortNames = {
+      pdpa: '個資', osh: '職安', ai_policy: 'AI', infosec: '資安',
+      bullying: '霸凌', harassment: '性騷'
+    };
+
+    const bars = all.map(c => {
+      const targets = employees.filter(e => e.role === c.role && e.active);
+      const done = targets.filter(e => Data.getProgress(e.empId, c.id).completed).length;
+      const pct = targets.length ? Math.round(done * 100 / targets.length) : 0;
+      return { id: c.id, label: shortNames[c.id] || c.title.slice(0, 2), pct, role: c.role };
+    });
+
+    const chartW = 600, chartH = 200, barW = 60, gap = 34;
+    const baseY = 165, maxBarH = 130;
+    const startX = (chartW - (bars.length * barW + (bars.length - 1) * gap)) / 2;
+
+    const barsSvg = bars.map((b, i) => {
+      const x = startX + i * (barW + gap);
+      const h = (b.pct / 100) * maxBarH;
+      const y = baseY - h;
+      const color = b.role === 'manager' ? '#b04060' : '#3d5a99';
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="${color}" style="transition: height 0.5s ease;"/>
+        <text x="${x + barW/2}" y="${y - 8}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-main)">${b.pct}%</text>
+        <text x="${x + barW/2}" y="${baseY + 20}" text-anchor="middle" font-size="12" fill="var(--text-light)">${b.label}</text>
+      `;
+    }).join('');
+
+    return `
+      <svg width="100%" viewBox="0 0 ${chartW} ${chartH}" style="max-width:100%;">
+        <line x1="${startX - 10}" y1="${baseY}" x2="${chartW - (startX - 10)}" y2="${baseY}" stroke="#e2e6ee" stroke-width="1"/>
+        ${barsSvg}
+      </svg>
+      <div style="display:flex; gap:18px; justify-content:center; margin-top:8px; font-size:12px; color:var(--text-light);">
+        <span><span style="display:inline-block; width:10px; height:10px; background:#3d5a99; border-radius:2px; margin-right:5px;"></span>新進人員課程</span>
+        <span><span style="display:inline-block; width:10px; height:10px; background:#b04060; border-radius:2px; margin-right:5px;"></span>主管課程</span>
       </div>
     `;
   }
