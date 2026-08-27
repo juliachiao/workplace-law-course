@@ -1258,6 +1258,9 @@ body::after {
   .nav-links { gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
   .nav-links a { font-size: 12px; padding: 5px 8px; letter-spacing: 0.5px; }
   .user-chip { padding: 5px 10px; font-size: 12px; margin-left: 4px; }
+
+  /* 背景裝飾光暈改為隨頁面捲動，減少 iOS 合成負擔造成的捲動卡頓 */
+  body::before, body::after { position: absolute; }
 }
 
 /* ============== AERY 聊天機器人 ============== */
@@ -2469,6 +2472,19 @@ body::after {
 .menu-prog-bar { flex: 1; height: 6px; background: rgba(74,94,128,0.12); border-radius: 3px; overflow: hidden; }
 .menu-prog-fill { height: 100%; background: var(--bc, var(--primary)); border-radius: 3px; transition: width 0.5s ease; }
 .menu-prog-pct { font-size: 11px; color: var(--text-light); font-weight: 600; white-space: nowrap; }
+
+/* 手機版：歡迎卡片縮小，減少版面占比（放在此處，確保優先權高於前面的桌面版預設樣式） */
+@media (max-width: 560px) {
+  .menu-hero { padding: 16px 18px 14px; margin-bottom: 20px; border-radius: 14px; }
+  .menu-hero-inner { gap: 10px; margin-bottom: 10px; }
+  .menu-hero-greeting { font-size: 14px; }
+  .menu-hero-path { font-size: 10px; padding: 3px 9px; margin-top: 4px; }
+  .menu-hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; width: 100%; }
+  .menu-stat { padding: 2px 4px; }
+  .menu-stat-n { font-size: 16px; }
+  .menu-stat-l { font-size: 9px; margin-top: 2px; }
+  .menu-prog-overall-label { font-size: 10px; margin-bottom: 5px; }
+}
 
 /* ── Sub-unit tags ── */
 .menu-card-subs { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; flex: 1; }
