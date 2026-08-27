@@ -1753,6 +1753,51 @@ body::after {
 .landing-course-card h3 { font-size: 16px; font-weight: 700; color: var(--text); margin: 0 0 8px; }
 .landing-course-card p { font-size: 13px; color: var(--text-light); line-height: 1.65; margin: 0; }
 
+/* ── 依身份分組標題 ── */
+.landing-path-group { margin-bottom: 40px; }
+.landing-path-group:last-child { margin-bottom: 0; }
+.landing-path-title {
+  font-size: 17px; font-weight: 700; margin-bottom: 18px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 18px; border-radius: 20px;
+}
+.path-title-emp { background: #e8f0fe; color: var(--primary); }
+.path-title-mgr { background: #fce8eb; color: #b04060; }
+.landing-course-grid-mgr { grid-template-columns: repeat(2, 1fr); max-width: 700px; }
+
+/* ── 翻轉卡片 ── */
+.flip-card {
+  height: 230px; perspective: 1400px; cursor: pointer; outline: none;
+}
+.flip-card-inner {
+  position: relative; width: 100%; height: 100%;
+  transition: transform 0.6s cubic-bezier(.4,.2,.2,1);
+  transform-style: preserve-3d;
+}
+.flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+.flip-card-front, .flip-card-back {
+  position: absolute; inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex; flex-direction: column;
+}
+.flip-card-front { transform: translateZ(0); }
+.flip-card-back {
+  transform: rotateY(180deg);
+  color: #fff; justify-content: center;
+  border-left: none !important;
+}
+.flip-card-back.tag-emp { background: linear-gradient(135deg, #2d4a8a 0%, #3d5a99 100%); }
+.flip-card-back.tag-mgr { background: linear-gradient(135deg, #7a2f45 0%, #99425a 100%); }
+.flip-card-back h4 { font-size: 15px; font-weight: 700; margin: 0 0 10px; }
+.flip-card-back p { font-size: 12.5px; line-height: 1.7; color: rgba(255,255,255,0.92); margin: 0; }
+.flip-back-meta { font-size: 11px; color: rgba(255,255,255,0.65); margin-top: 14px; }
+.flip-hint {
+  margin-top: auto; padding-top: 12px; font-size: 11px;
+  color: var(--primary); opacity: 0.7; letter-spacing: 0.5px;
+}
+.flip-card:hover .flip-card-front { box-shadow: 0 12px 36px rgba(61,90,153,0.15); transform: translateY(-3px); }
+
 /* ── Features ── */
 .landing-features-sec { padding: 76px 0; background: #f6faff; }
 .landing-features-grid {
