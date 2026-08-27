@@ -38,13 +38,42 @@ const Data = (function () {
     ]
   };
 
-  // 取/存
+  // 取/存（若瀏覽器封鎖 localStorage，自動退回記憶體暫存模式，避免整站直接掛掉）
+  let memoryFallback = null;
+  let usingFallback = false;
+
+  function checkStorageAvailable() {
+    try {
+      const testKey = '__tp_storage_test__';
+      localStorage.setItem(testKey, '1');
+      localStorage.removeItem(testKey);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  if (!checkStorageAvailable()) {
+    usingFallback = true;
+    memoryFallback = {};
+    console.warn('[systex] localStorage 無法使用，已切換為暫存模式（資料不會保存，重新整理將重置）。');
+  }
+
   function get(key, def) {
-    const v = localStorage.getItem(key);
+    if (usingFallback) {
+      return key in memoryFallback ? memoryFallback[key] : def;
+    }
+    let v;
+    try { v = localStorage.getItem(key); } catch (e) { return def; }
     if (!v) return def;
     try { return JSON.parse(v); } catch { return def; }
   }
-  function set(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+  function set(key, val) {
+    if (usingFallback) { memoryFallback[key] = val; return; }
+    try { localStorage.setItem(key, JSON.stringify(val)); }
+    catch (e) { usingFallback = true; memoryFallback = memoryFallback || {}; memoryFallback[key] = val; }
+  }
+  function isUsingFallback() { return usingFallback; }
 
   // ===== 初始化預設管理員與示範員工 =====
   function init() {
@@ -404,6 +433,7 @@ const Data = (function () {
   return {
     COURSES,
     init,
+    isUsingFallback,
     getEmployees, getEmployee, addEmployee, updateEmployee, deleteEmployee,
     importEmployeesFromCSV, exportEmployeesToCSV, exportLearningRecordsToCSV,
     downloadFile,
