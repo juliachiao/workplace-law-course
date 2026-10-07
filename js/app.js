@@ -506,7 +506,7 @@ const App = (function () {
           </div>
           <div class="menu-card-desc">走進 3D 辦公室，找線索、玩小遊戲，${isManager ? '3' : '4'} 大關卡全破就能領取結業證書！</div>
         </div>
-        <div class="menu-card-arrow">▶</div>
+        <div class="menu-card-arrow">→</div>
       </div>
     `;
 
@@ -630,7 +630,7 @@ const App = (function () {
 
     if (lock.locked) {
       main.innerHTML = `
-        <a class="back-link" onclick="App.go('menu')" style="margin-top:0; margin-bottom:20px;">← 回課程選單</a>
+        <a class="btn-back-menu" onclick="App.go('menu')" style="margin-bottom:20px;">← 回課程選單</a>
         <h1 class="page-title" style="font-size:32px;">🎓 ${courseTitle}總測驗</h1>
         <div style="background:var(--card-bg); padding:60px; border-radius:16px; text-align:center; margin-top:20px;">
           <div style="font-size:60px;">🔒</div>
@@ -644,7 +644,7 @@ const App = (function () {
 
     const qs = FINAL_QUIZ_BANK[role] || [];
     main.innerHTML = `
-      <a class="back-link" onclick="App.go('menu')" style="margin-top:0; margin-bottom:20px;">← 回課程選單</a>
+      <a class="btn-back-menu" onclick="App.go('menu')" style="margin-bottom:20px;">← 回課程選單</a>
       <h1 class="page-title" style="font-size:32px;">🎓 ${courseTitle}總測驗</h1>
       <p class="page-subtitle">共 ${qs.length} 題　｜　80 分通過　｜　預定學習時間 20 分鐘</p>
       <div class="course-content" id="final-exam-section">
@@ -722,7 +722,7 @@ const App = (function () {
       ${questionHTML}
       <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:20px;">
         <button class="btn btn-secondary" id="retake-final-exam">🔄 重新作答</button>
-        <button class="btn btn-primary" onclick="App.go('menu')">回課程選單 →</button>
+        <a class="btn-back-menu" onclick="App.go('menu')">← 回課程選單</a>
       </div>
     `;
 
@@ -774,7 +774,7 @@ const App = (function () {
     main.innerHTML = `
       <div class="cv-page" style="--bc:${col.c}">
         <div class="cv-topbar">
-          <a class="cv-nav-link" onclick="App.go('menu')">← 回課程選單</a>
+          <a class="btn-back-menu" onclick="App.go('menu')">← 回課程選單</a>
 
         </div>
 
@@ -1011,7 +1011,7 @@ const App = (function () {
 
       <div class="csd-section">
         <div class="csd-section-topbar">
-          <a class="back-link csd-back-link" onclick="App.go('menu')">← 回課程選單</a>
+          <a class="btn-back-menu csd-back-link" onclick="App.go('menu')">← 回課程選單</a>
           <div class="csd-section-label">課程架構圖</div>
         </div>
 
@@ -1188,7 +1188,7 @@ const App = (function () {
           </div>
         </div>
 
-        <a class="back-link" onclick="App.go('menu')">← 回課程選單</a>
+        <a class="btn-back-menu is-bottom" onclick="App.go('menu')">← 回課程選單</a>
       </div>
     `;
   }
@@ -1279,7 +1279,7 @@ const App = (function () {
       <h1 class="page-title">錯題本</h1>
       <p class="page-subtitle">${totalWrong ? `共 ${totalWrong} 題待複習 — 針對答錯的題目加強學習` : '目前沒有錯題，繼續保持！'}</p>
       <div style="max-width:720px; margin:0 auto;">${sections}</div>
-      <a class="back-link" onclick="App.go('menu')">← 回課程選單</a>
+      <a class="btn-back-menu is-bottom" onclick="App.go('menu')">← 回課程選單</a>
     `;
   }
 
@@ -1332,7 +1332,7 @@ const App = (function () {
           <p style="color:var(--text-light);">您可以瀏覽課程概要,但學習紀錄不會被列入。</p>
           <p style="margin-top:12px;">課程簡介: ${course.desc}</p>
         </div>
-        <a class="back-link" onclick="App.go('menu')">← 回課程選單</a>
+        <a class="btn-back-menu is-bottom" onclick="App.go('menu')">← 回課程選單</a>
       `;
       return;
     }
