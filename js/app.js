@@ -577,7 +577,7 @@ const App = (function () {
           <h2 class="menu-section-title">課程選單</h2>
           <p class="menu-section-sub">點擊課程卡片進入學習</p>
         </div>
-        <div class="menu-grid">${courseCards}${gameCard}${finalExamCard}</div>
+        <div class="menu-grid">${courseCards}${finalExamCard}${gameCard}</div>
       </div>
     `;
 
