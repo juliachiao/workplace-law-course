@@ -2876,41 +2876,18 @@ body::after {
 }
 
 /* =====================================================================
-   新增：3D 闖關遊戲卡片、總測驗金色卡片、回課程選單按鈕、遊戲頁
+   新增：3D 闖關遊戲卡片、總測驗卡片、回課程選單按鈕、遊戲頁
+   （卡片大小跟課程卡片一樣，只用底色區分）
    ===================================================================== */
-/* 遊戲卡片：整排、漸層底色，跟課程卡片區分 */
-.menu-card.menu-card-game {
-  grid-column: 1 / -1;
-  border: none; color: #fff;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.14);
-}
-.menu-card.menu-card-game.game-emp { background: linear-gradient(120deg, #ff6fa5 0%, #b47cff 55%, #7c8cff 100%); }
-.menu-card.menu-card-game.game-mgr { background: linear-gradient(120deg, #3fa9f5 0%, #6cc4f2 45%, #ff9a5c 100%); }
-.menu-card.menu-card-game::before { display: none; }
-.menu-card.menu-card-game .menu-card-icon { background: rgba(255,255,255,0.25); }
-.menu-card.menu-card-game .menu-card-title { color: #fff; font-size: 17px; }
-.menu-card.menu-card-game .menu-card-desc { color: rgba(255,255,255,0.92); font-size: 13px; }
-.menu-card.menu-card-game .menu-card-badge { background: #fff; color: #e0457b; }
-.menu-card.menu-card-game.game-mgr .menu-card-badge { color: #2f6fb3; }
-.menu-card.menu-card-game .menu-card-arrow {
-  opacity: 1; color: #fff; background: rgba(255,255,255,0.25);
-  width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px;
-}
-.menu-card.menu-card-game:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(0,0,0,0.2); }
+/* 遊戲卡片：淡紫底色 */
+.menu-card.menu-card-game { --bc: #6c5ce7; --bbg: #e4e0ff; background: #f3f1ff; border-color: rgba(108,92,231,0.25); }
+.menu-card.menu-card-game .menu-card-title { color: #3f33a8; }
+.menu-card.menu-card-game .menu-card-badge { background: #6c5ce7; color: #fff; }
 
-/* 總測驗卡片：金色，跟課程卡片區分 */
-.menu-card.menu-card-final {
-  border: none;
-  background: linear-gradient(120deg, #f6c453 0%, #e8a33d 100%);
-  box-shadow: 0 8px 22px rgba(184,134,11,0.25);
-}
-.menu-card.menu-card-final::before { display: none; }
-.menu-card.menu-card-final .menu-card-icon { background: rgba(255,255,255,0.35); }
-.menu-card.menu-card-final .menu-card-title { color: #4a2f00; }
-.menu-card.menu-card-final .menu-card-desc { color: #5c3d06; }
-.menu-card.menu-card-final .menu-card-arrow { color: #4a2f00; opacity: 0.8; }
-.menu-card.menu-card-final:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(184,134,11,0.35); }
-.menu-card.menu-card-final.is-locked { background: linear-gradient(120deg, #e9e2cf 0%, #ddd3bb 100%); box-shadow: none; }
+/* 總測驗卡片：淡金底色 */
+.menu-card.menu-card-final { --bc: #c9971c; --bbg: #fbe9bd; background: #fdf6e3; border-color: rgba(201,151,28,0.28); }
+.menu-card.menu-card-final .menu-card-title { color: #7a5600; }
+.menu-card.menu-card-final.is-locked { opacity: 0.7; }
 
 /* 回課程選單按鈕（操作說明頁、遊戲頁） */
 .btn-back-menu {
@@ -2922,6 +2899,8 @@ body::after {
 }
 .btn-back-menu:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(74,94,128,0.35); }
 .guide-wrap > .btn-back-menu { margin-bottom: 18px; }
+.btn-back-menu.is-bottom { margin-top: 28px; }
+.btn-back-menu.csd-back-link { font-size: 14px !important; }
 
 /* 遊戲頁 */
 .game-page { max-width: 1200px; margin: 0 auto; padding: 24px 20px 30px; }
@@ -2930,8 +2909,8 @@ body::after {
 .btn-game-newtab {
   padding: 9px 18px; border-radius: 999px; color: #fff !important; text-decoration: none; font-size: 14px; font-weight: 700;
 }
-.btn-game-newtab.game-emp { background: linear-gradient(120deg, #ff6fa5, #b47cff); }
-.btn-game-newtab.game-mgr { background: linear-gradient(120deg, #3fa9f5, #ff9a5c); }
+.btn-game-newtab.game-emp { background: #6c5ce7; }
+.btn-game-newtab.game-mgr { background: #6c5ce7; }
 .game-frame-wrap {
   position: relative; width: 100%; height: calc(100vh - 230px); min-height: 420px;
   border-radius: 18px; overflow: hidden; background: #111; box-shadow: 0 10px 30px rgba(0,0,0,0.18);
