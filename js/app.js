@@ -398,7 +398,8 @@ const App = (function () {
     guide:        renderGuide,
     wronganswers: renderWrongAnswers,
     course:       renderCourse,
-    final_exam:   renderFinalExam
+    final_exam:   renderFinalExam,
+    game:         renderGame
   };
 
   function renderRoute(route, ...args) {
@@ -475,7 +476,7 @@ const App = (function () {
       finalBadge = `<span class="menu-card-badge" style="background:#eee; color:#888;">🔒 尚未解鎖</span>`;
     }
     const finalExamCard = `
-      <div class="menu-card" data-final-exam="1" style="--bc:#b8860b; --bbg:#fdf6e3; opacity:${finalLock.locked && !finalProg.completed ? '0.65' : '1'};">
+      <div class="menu-card menu-card-final ${finalLock.locked && !finalProg.completed ? 'is-locked' : ''}" data-final-exam="1">
         <div class="menu-card-left">
           <div class="menu-card-icon">🎓</div>
         </div>
@@ -489,6 +490,23 @@ const App = (function () {
             : '完成所有單元課程！可以進行總測驗，檢核整體學習成效'}</div>
         </div>
         <div class="menu-card-arrow">${finalLock.locked && !finalProg.completed ? '🔒' : '→'}</div>
+      </div>
+    `;
+
+    // 3D 闖關遊戲（依身分顯示員工篇或主管篇）
+    const gameCard = `
+      <div class="menu-card menu-card-game ${isManager ? 'game-mgr' : 'game-emp'}" data-game="1">
+        <div class="menu-card-left">
+          <div class="menu-card-icon">🎮</div>
+        </div>
+        <div class="menu-card-body">
+          <div class="menu-card-title-row">
+            <span class="menu-card-title">Aery 3D 闖關遊戲・${isManager ? '主管篇' : '員工篇'}</span>
+            <span class="menu-card-badge">NEW</span>
+          </div>
+          <div class="menu-card-desc">走進 3D 辦公室，找線索、玩小遊戲，${isManager ? '3' : '4'} 大關卡全破就能領取結業證書！</div>
+        </div>
+        <div class="menu-card-arrow">▶</div>
       </div>
     `;
 
@@ -559,7 +577,7 @@ const App = (function () {
           <h2 class="menu-section-title">課程選單</h2>
           <p class="menu-section-sub">點擊課程卡片進入學習</p>
         </div>
-        <div class="menu-grid">${courseCards}${finalExamCard}</div>
+        <div class="menu-grid">${courseCards}${gameCard}${finalExamCard}</div>
       </div>
     `;
 
@@ -571,6 +589,36 @@ const App = (function () {
     if (feCard) {
       feCard.addEventListener('click', () => renderRoute('final_exam', user.role));
     }
+
+    const gmCard = main.querySelector('.menu-card[data-game]');
+    if (gmCard) {
+      gmCard.addEventListener('click', () => renderRoute('game'));
+    }
+  }
+
+  // ===== 3D 闖關遊戲頁 =====
+  const GAME_URLS = {
+    new_employee: 'https://juliachiao.github.io/3d-space/employee.html',
+    manager:      'https://juliachiao.github.io/3d-space/manager.html'
+  };
+  function renderGame() {
+    const user = Data.getCurrentUser();
+    const isManager = user.role === 'manager';
+    const url = isManager ? GAME_URLS.manager : GAME_URLS.new_employee;
+    try { Data.addLog(user.empId, 'game_opened', `開啟 3D 闖關遊戲（${isManager ? '主管篇' : '員工篇'}）`); } catch (e) {}
+    document.getElementById('main-content').innerHTML = `
+      <div class="game-page">
+        <div class="game-page-top">
+          <a class="btn-back-menu" onclick="App.go('menu')">← 回課程選單</a>
+          <div class="game-page-title">🎮 Aery 3D 闖關遊戲・${isManager ? '主管篇' : '員工篇'}</div>
+          <a class="btn-game-newtab ${isManager ? 'game-mgr' : 'game-emp'}" href="${url}" target="_blank" rel="noopener">↗ 全螢幕開啟</a>
+        </div>
+        <div class="game-frame-wrap">
+          <iframe src="${url}" title="Aery 3D 闖關遊戲" allow="fullscreen; autoplay" allowfullscreen></iframe>
+        </div>
+        <p class="game-page-tip">💡 點一下遊戲畫面就能開始操作，按 Esc 可以叫回滑鼠。用手機玩的話，建議點右上角「全螢幕開啟」。</p>
+      </div>
+    `;
   }
 
   // ===== 總測驗頁 =====
@@ -1086,6 +1134,7 @@ const App = (function () {
   function renderGuide() {
     document.getElementById('main-content').innerHTML = `
       <div class="guide-wrap">
+        <a class="btn-back-menu" onclick="App.go('menu')">← 回課程選單</a>
         <div class="guide-header">
           <h1 class="page-title">操作說明</h1>
           <p class="guide-subtitle">三個步驟，輕鬆完成職場法律必修課程</p>
