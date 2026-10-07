@@ -875,7 +875,7 @@ const App = (function () {
       </div>` : '';
 
     main.innerHTML = `
-      <a class="back-link" onclick="App.go('cover','${courseId}','${role}')" style="margin-bottom:20px;">← 回課程封面</a>
+      <a class="btn-back-menu" onclick="App.go('cover','${courseId}','${role}')" style="margin-bottom:20px;">← 回課程封面</a>
 
       <div class="ci-hero" style="--bc:${col.c}">
         <div class="ci-hero-inner">
@@ -1402,7 +1402,7 @@ const App = (function () {
     `;
 
     main.innerHTML = `
-      <a class="back-link" onclick="App.go('cover','${courseId}','${role}')" style="margin-top:0; margin-bottom:20px;">← 回課程封面</a>
+      <a class="btn-back-menu" onclick="App.go('cover','${courseId}','${role}')" style="margin-bottom:20px;">← 回課程封面</a>
       <h1 class="page-title" style="font-size:32px;">${course.icon} ${course.title}</h1>
       <p class="page-subtitle">${course.desc}</p>
 
