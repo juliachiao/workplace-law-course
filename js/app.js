@@ -657,6 +657,7 @@ const App = (function () {
 
     document.getElementById('submit-final-exam').addEventListener('click', () => {
       const score = gradeFinalQuiz(role);
+      try { Data.addQuizAttempt(user.empId, 'final_' + role, score, finalItemResults(role)); } catch (e) {}
       Data.setProgress(user.empId, 'final_' + role, { quizScore: score, completed: score >= 80 });
       Data.addLog(user.empId, 'final_exam_submitted', `總測驗(${role}) 得 ${score} 分`);
       renderFinalExamResults(role, score);
@@ -1467,6 +1468,7 @@ const App = (function () {
       const user = Data.getCurrentUser();
       Data.setProgress(user.empId, courseId, { quizScore: score });
       Data.addLog(user.empId, 'quiz_submitted', `測驗: ${courseId} 得 ${score} 分`);
+      try { Data.addQuizAttempt(user.empId, courseId, score, qs.map((q, i) => ({ q: q.q, ok: userAnswers[i] === q.a }))); } catch (e) {}
       const wrongs = qs.reduce((acc, q, i) => {
         if (userAnswers[i] !== q.a) acc.push({ q: q.q, opts: q.opts, a: q.a, ua: userAnswers[i], explain: q.explain });
         return acc;
@@ -2091,6 +2093,23 @@ const App = (function () {
         }).join('')}
       </div>
     `).join('');
+  }
+
+  // 總測驗每一題對或錯（數據分析用）
+  function finalItemResults(role) {
+    const qs = FINAL_QUIZ_BANK[role] || [];
+    return qs.map((q, qi) => {
+      let ok;
+      if (q.type === 'multi') {
+        const picked = Array.from(document.querySelectorAll(`input[name="fq${qi}"]:checked`)).map(el => parseInt(el.value)).sort();
+        const answer = [...q.a].sort();
+        ok = picked.length === answer.length && picked.every((v, idx) => v === answer[idx]);
+      } else {
+        const picked = document.querySelector(`input[name="fq${qi}"]:checked`);
+        ok = !!picked && parseInt(picked.value) === q.a;
+      }
+      return { q: q.q, ok };
+    });
   }
 
   function gradeFinalQuiz(role) {
