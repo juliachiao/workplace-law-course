@@ -21,7 +21,8 @@ const Data = (function () {
     ANNOUNCEMENTS: 'tp_announcements',
     NOTICES_READ: 'tp_notices_read',
     WRONG_ANSWERS: 'tp_wrong_answers',
-    BOOKMARKS: 'tp_bookmarks'
+    BOOKMARKS: 'tp_bookmarks',
+    QUIZ_ATTEMPTS: 'tp_quiz_attempts'   // 每一次測驗的作答明細（數據分析用）
   };
 
   // 內建課程資料 (對應 PDF 內容)
@@ -427,6 +428,69 @@ const Data = (function () {
   }
 
   // 重置示範資料 (僅供 demo)
+  // ===== 測驗作答明細（每次作答都保留，用於題目分析、前後次比較）=====
+  function addQuizAttempt(empId, quizId, score, items) {
+    const all = get(KEYS.QUIZ_ATTEMPTS, []);
+    all.push({
+      id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7),
+      empId, quizId, score, items, at: new Date().toISOString()
+    });
+    if (all.length > 5000) all.shift();
+    set(KEYS.QUIZ_ATTEMPTS, all);
+  }
+  function getQuizAttempts(empId) {
+    const all = get(KEYS.QUIZ_ATTEMPTS, []);
+    return empId ? all.filter(a => a.empId === empId) : all;
+  }
+
+  // ===== 完整備份（JSON）：匯出、匯入合併 =====
+  // 用途：在不同電腦收集的資料，可以各自匯出後，再匯入到同一台電腦合併分析
+  const BACKUP_KEYS = ['EMPLOYEES', 'LOGS', 'PROGRESS', 'WRONG_ANSWERS', 'BOOKMARKS', 'QUIZ_ATTEMPTS'];
+  function exportBackup() {
+    const data = {};
+    BACKUP_KEYS.forEach(k => { data[k] = get(KEYS[k], null); });
+    return JSON.stringify({ app: 'workplace-law-course', version: 1, exportedAt: new Date().toISOString(), data }, null, 1);
+  }
+  function importBackupMerge(text) {
+    const obj = JSON.parse(text);
+    if (!obj || obj.app !== 'workplace-law-course' || !obj.data) throw new Error('不是本系統匯出的備份檔');
+    const d = obj.data, summary = { employees: 0, logs: 0, attempts: 0 };
+    // 員工：以員工編號合併
+    if (Array.isArray(d.EMPLOYEES)) {
+      const emps = getEmployees();
+      d.EMPLOYEES.forEach(e => { if (e && e.empId && !emps.some(x => x.empId === e.empId)) { emps.push(e); summary.employees++; } });
+      setEmployees(emps);
+    }
+    // 學習進度：同一人同一課程，保留較新的那筆
+    if (d.PROGRESS) {
+      const all = get(KEYS.PROGRESS, {});
+      Object.entries(d.PROGRESS).forEach(([empId, courses]) => {
+        all[empId] = all[empId] || {};
+        Object.entries(courses || {}).forEach(([cid, p]) => {
+          const cur = all[empId][cid];
+          if (!cur || (p.lastAt || '') > (cur.lastAt || '')) all[empId][cid] = p;
+        });
+      });
+      set(KEYS.PROGRESS, all);
+    }
+    // 操作紀錄、作答明細：去除重複後合併
+    if (Array.isArray(d.LOGS)) {
+      const logs = get(KEYS.LOGS, []), seen = new Set(logs.map(l => l.at + l.empId + l.type));
+      d.LOGS.forEach(l => { const k = l.at + l.empId + l.type; if (!seen.has(k)) { seen.add(k); logs.push(l); summary.logs++; } });
+      logs.sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+      set(KEYS.LOGS, logs);
+    }
+    if (Array.isArray(d.QUIZ_ATTEMPTS)) {
+      const at = get(KEYS.QUIZ_ATTEMPTS, []), seen = new Set(at.map(a => a.id));
+      d.QUIZ_ATTEMPTS.forEach(a => { if (!seen.has(a.id)) { seen.add(a.id); at.push(a); summary.attempts++; } });
+      set(KEYS.QUIZ_ATTEMPTS, at);
+    }
+    ['WRONG_ANSWERS', 'BOOKMARKS'].forEach(k => {
+      if (d[k]) set(KEYS[k], { ...d[k], ...get(KEYS[k], {}) });
+    });
+    return summary;
+  }
+
   function resetAll() {
     Object.values(KEYS).forEach(k => localStorage.removeItem(k));
     init();
@@ -450,7 +514,8 @@ const Data = (function () {
     getAnnouncements, addAnnouncement, deleteAnnouncement,
     getUnreadAnnouncements, markAnnouncementsRead,
     saveWrongAnswers, getWrongAnswers,
-    addBookmark, getBookmarks, deleteBookmark
+    addBookmark, getBookmarks, deleteBookmark,
+    addQuizAttempt, getQuizAttempts, exportBackup, importBackupMerge
   };
 
   // ===== 錯題本 =====
