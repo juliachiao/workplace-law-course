@@ -52,6 +52,7 @@ const Admin = (function () {
   function showPage(p) {
     ({
       dashboard:     renderDashboard,
+      analytics:     renderAnalytics,
       employees:     renderEmployees,
       videos:        renderVideos,
       learning:      renderLearning,
@@ -836,6 +837,22 @@ const Admin = (function () {
           <button class="btn btn-primary" id="exp-logs">下載操作紀錄</button>
         </div>
 
+        <div class="stat-card" style="border:2px solid #6c5ce7; background:#f6f4ff;">
+          <h3>📦 完整數據（Excel）</h3>
+          <p style="color:var(--text-light); margin:12px 0;">一個檔案包含所有數據：學員總表、單元學習紀錄、測驗作答紀錄、逐題作答明細、題目分析、操作紀錄（每項一個工作表），可直接用來做評鑑分析。</p>
+          <button class="btn btn-primary" id="exp-all">下載完整數據</button>
+        </div>
+
+        <div class="stat-card">
+          <h3>🗄️ 備份與合併</h3>
+          <p style="color:var(--text-light); margin:12px 0;">學員在不同電腦上學習時：在每台電腦下載備份檔，再到同一台電腦「匯入合併」，就能一起分析。</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="exp-backup">下載備份檔</button>
+            <button class="btn btn-secondary" id="imp-backup">匯入合併</button>
+          </div>
+          <input type="file" id="imp-backup-file" accept=".json,application/json" style="display:none;">
+        </div>
+
         <div class="stat-card" style="border:1px solid #f0c0c0;">
           <h3 style="color:var(--accent-red);">⚠️ 重置示範資料</h3>
           <p style="color:var(--text-light); margin:12px 0;">清空所有資料,還原為預設示範狀態</p>
@@ -860,6 +877,27 @@ const Admin = (function () {
       Data.downloadFile(`操作紀錄_${new Date().toISOString().slice(0,10)}.csv`, '﻿' + lines.join('\n'));
       toast('操作紀錄已匯出', 'success');
     };
+    document.getElementById('exp-all').onclick = downloadAllExcel;
+    document.getElementById('exp-backup').onclick = () => {
+      const blob = new Blob([Data.exportBackup()], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `學習數據備份_${new Date().toISOString().slice(0,10)}.json`; document.body.appendChild(a); a.click(); a.remove();
+      toast('備份檔已下載', 'success');
+    };
+    const impFile = document.getElementById('imp-backup-file');
+    document.getElementById('imp-backup').onclick = () => impFile.click();
+    impFile.onchange = () => {
+      const f = impFile.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const sm = Data.importBackupMerge(r.result);
+          toast(`合併完成：新增 ${sm.employees} 位員工、${sm.attempts} 筆作答、${sm.logs} 筆紀錄`, 'success');
+        } catch (e) { toast('匯入失敗：' + e.message, 'error'); }
+        impFile.value = '';
+      };
+      r.readAsText(f);
+    };
     document.getElementById('reset-all').onclick = () => {
       if (confirm('將清空所有員工、學習紀錄並還原預設資料,確定?')) {
         Data.resetAll();
@@ -867,6 +905,247 @@ const Admin = (function () {
         setTimeout(() => location.reload(), 1200);
       }
     };
+  }
+
+  // =====================================================================
+  // ===== 數據分析（形成性／總結性評鑑用）=====
+  // =====================================================================
+  const QUIZ_META = () => {
+    const m = {};
+    Data.COURSES.new_employee.forEach(c => { m[c.id] = { title: c.title, role: 'new_employee', icon: c.icon }; });
+    Data.COURSES.manager.forEach(c => { m[c.id] = { title: c.title, role: 'manager', icon: c.icon }; });
+    m.final_new_employee = { title: '新進人員總測驗', role: 'new_employee', icon: '🎓' };
+    m.final_manager = { title: '主管總測驗', role: 'manager', icon: '🎓' };
+    return m;
+  };
+  const roleName = r => r === 'manager' ? '主管' : '新進人員';
+  const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const fmt1 = v => v == null ? '-' : (Math.round(v * 10) / 10).toString();
+  const pctTxt = v => v == null ? '-' : Math.round(v) + '%';
+
+  // 依「人」整理每份測驗的第一次、最後一次作答
+  function attemptsByPerson(quizId, empIds) {
+    const res = {};
+    Data.getQuizAttempts().filter(a => a.quizId === quizId && (!empIds || empIds.has(a.empId)))
+      .sort((a, b) => (a.at || '').localeCompare(b.at || ''))
+      .forEach(a => { (res[a.empId] = res[a.empId] || []).push(a); });
+    return res;
+  }
+  // 計算某份測驗的成效（沒有作答明細時，退回使用最後分數）
+  function quizSummary(quizId, targets) {
+    const ids = new Set(targets.map(e => e.empId));
+    const byP = attemptsByPerson(quizId, ids);
+    const first = [], last = [], counts = [];
+    targets.forEach(e => {
+      const list = byP[e.empId];
+      if (list && list.length) { first.push(list[0].score); last.push(list[list.length - 1].score); counts.push(list.length); }
+      else { const p = Data.getProgress(e.empId, quizId); if (p.quizScore != null) { first.push(p.quizScore); last.push(p.quizScore); counts.push(1); } }
+    });
+    return { n: last.length, firstAvg: avg(first), lastAvg: avg(last), attemptsAvg: avg(counts), pass: last.filter(s => s >= 80).length, last };
+  }
+  // 題目分析：用每個人「第一次」作答計算答對率（難度指標 P 值）
+  function itemAnalysis(quizId, targets) {
+    const ids = new Set(targets.map(e => e.empId));
+    const byP = attemptsByPerson(quizId, ids);
+    const items = [];
+    Object.values(byP).forEach(list => {
+      (list[0].items || []).forEach((it, i) => {
+        items[i] = items[i] || { q: it.q, n: 0, ok: 0 };
+        items[i].n++; if (it.ok) items[i].ok++;
+      });
+    });
+    return items.map((it, i) => ({ no: i + 1, q: it.q, n: it.n, p: it.n ? it.ok * 100 / it.n : null }));
+  }
+
+  let anRole = 'all', anQuiz = null;
+  function renderAnalytics() {
+    const meta = QUIZ_META();
+    const emps = Data.getEmployees().filter(e => e.active !== false && (anRole === 'all' || e.role === anRole));
+    const courseList = [...Data.COURSES.new_employee.map(c => ({ ...c, role: 'new_employee' })), ...Data.COURSES.manager.map(c => ({ ...c, role: 'manager' }))]
+      .filter(c => anRole === 'all' || c.role === anRole);
+    const quizIds = courseList.map(c => c.id).concat(anRole === 'all' ? ['final_new_employee', 'final_manager'] : ['final_' + anRole]);
+    if (!anQuiz || !quizIds.includes(anQuiz)) anQuiz = quizIds[0];
+
+    // ---- 總覽 ----
+    const started = emps.filter(e => Data.getLogs(e.empId).length || courseList.some(c => Object.keys(Data.getProgress(e.empId, c.id)).length));
+    const compRates = emps.map(e => Data.getEmployeeOverallProgress(e.empId).percent);
+    const unitLast = [];
+    courseList.forEach(c => { quizSummary(c.id, emps.filter(e => e.role === c.role)).last.forEach(s => unitLast.push(s)); });
+    const finals = (anRole === 'all' ? ['new_employee', 'manager'] : [anRole]).map(r => quizSummary('final_' + r, emps.filter(e => e.role === r)));
+    const finN = finals.reduce((a, f) => a + f.n, 0), finPass = finals.reduce((a, f) => a + f.pass, 0);
+    const studyMins = emps.map(e => courseList.filter(c => c.role === e.role).reduce((a, c) => a + (Data.getProgress(e.empId, c.id).studySeconds || 0), 0) / 60).filter(m => m > 0);
+    const gameLogs = Data.getLogs().filter(l => l.type === 'game_opened' && emps.some(e => e.empId === l.empId));
+
+    // ---- 各單元成效 ----
+    const unitRows = courseList.map(c => {
+      const t = emps.filter(e => e.role === c.role);
+      const done = t.filter(e => Data.getProgress(e.empId, c.id).completed).length;
+      const vid = t.filter(e => Data.getProgress(e.empId, c.id).videoWatched).length;
+      const qs = quizSummary(c.id, t);
+      const st = t.map(e => (Data.getProgress(e.empId, c.id).studySeconds || 0) / 60).filter(m => m > 0);
+      const diff = qs.firstAvg != null && qs.lastAvg != null ? qs.lastAvg - qs.firstAvg : null;
+      return `<tr><td>${c.icon} ${c.title}<br><small style="color:var(--text-light)">${roleName(c.role)}</small></td>
+        <td>${t.length}</td><td>${t.length ? pctTxt(done * 100 / t.length) : '-'}</td><td>${t.length ? pctTxt(vid * 100 / t.length) : '-'}</td>
+        <td>${qs.n}</td><td>${fmt1(qs.firstAvg)}</td><td>${fmt1(qs.lastAvg)}</td>
+        <td style="color:${diff > 0 ? '#2e8b57' : 'inherit'}; font-weight:${diff > 0 ? 700 : 400}">${diff == null ? '-' : (diff > 0 ? '+' : '') + fmt1(diff)}</td>
+        <td>${fmt1(qs.attemptsAvg)}</td><td>${st.length ? fmt1(avg(st)) + ' 分' : '-'}</td></tr>`;
+    }).join('');
+
+    // ---- 部門比較 ----
+    const depts = [...new Set(emps.map(e => e.dept || '未填部門'))];
+    const deptRows = depts.map(d => {
+      const t = emps.filter(e => (e.dept || '未填部門') === d);
+      const rate = avg(t.map(e => Data.getEmployeeOverallProgress(e.empId).percent));
+      const sc = [];
+      t.forEach(e => (Data.COURSES[e.role] || []).forEach(c => { const p = Data.getProgress(e.empId, c.id); if (p.quizScore != null) sc.push(p.quizScore); }));
+      return `<tr><td>${escapeHtml(d)}</td><td>${t.length}</td><td>${pctTxt(rate)}</td><td>${fmt1(avg(sc))}</td></tr>`;
+    }).join('');
+
+    const quizOptions = quizIds.map(id => `<option value="${id}" ${id === anQuiz ? 'selected' : ''}>${meta[id].icon} ${meta[id].title}</option>`).join('');
+    const main = document.getElementById('admin-content');
+    main.innerHTML = `
+      <div class="admin-header">
+        <h1>數據分析</h1>
+        <div class="an-filter">
+          ${[['all', '全部'], ['new_employee', '新進人員'], ['manager', '主管']].map(([v, t]) => `<button class="an-chip ${anRole === v ? 'on' : ''}" data-role="${v}">${t}</button>`).join('')}
+        </div>
+      </div>
+      <p class="an-note">💡 資料來源是<b>這台電腦的瀏覽器</b>。如果學員在不同電腦上學習，可以到「資料匯出」把各台電腦的備份檔匯入合併後再分析。</p>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-label">已開始學習人數</div><div class="stat-value">${started.length} <small>/ ${emps.length}</small></div></div>
+        <div class="stat-card"><div class="stat-label">平均完成率</div><div class="stat-value green">${pctTxt(avg(compRates))}</div></div>
+        <div class="stat-card"><div class="stat-label">單元測驗平均分數</div><div class="stat-value orange">${fmt1(avg(unitLast))}</div></div>
+        <div class="stat-card"><div class="stat-label">總測驗通過率（80 分）</div><div class="stat-value">${finN ? pctTxt(finPass * 100 / finN) : '-'} <small>${finN ? finPass + ' / ' + finN + ' 人' : ''}</small></div></div>
+        <div class="stat-card"><div class="stat-label">平均學習時間</div><div class="stat-value">${studyMins.length ? fmt1(avg(studyMins)) : '-'} <small>分鐘</small></div></div>
+        <div class="stat-card"><div class="stat-label">3D 遊戲開啟</div><div class="stat-value">${new Set(gameLogs.map(l => l.empId)).size} <small>人 / ${gameLogs.length} 次</small></div></div>
+      </div>
+
+      <div class="stat-card an-block">
+        <h3>📚 各單元學習成效</h3>
+        <p class="an-desc">「首次平均」是每位學員第一次作答的分數，「最後平均」是最近一次作答的分數，兩者的差距可以看出訂正、重考後的進步幅度。</p>
+        <div class="an-table-wrap"><table class="data-table">
+          <thead><tr><th>單元</th><th>對象人數</th><th>完成率</th><th>影片完成率</th><th>測驗人數</th><th>首次平均</th><th>最後平均</th><th>進步</th><th>平均作答次數</th><th>平均學習時間</th></tr></thead>
+          <tbody>${unitRows || '<tr><td colspan="10" style="text-align:center;color:var(--text-light)">尚無資料</td></tr>'}</tbody>
+        </table></div>
+      </div>
+
+      <div class="stat-card an-block">
+        <div class="an-head"><h3>📊 分數分布與題目分析</h3><select id="an-quiz" class="an-select">${quizOptions}</select></div>
+        <div class="an-two">
+          <div><h4 class="an-sub">分數分布（最近一次作答）</h4><div id="an-hist"></div></div>
+          <div><h4 class="an-sub">題目答對率（每人第一次作答）</h4><div id="an-items"></div></div>
+        </div>
+      </div>
+
+      <div class="stat-card an-block">
+        <h3>🏢 部門比較</h3>
+        <div class="an-table-wrap"><table class="data-table">
+          <thead><tr><th>部門</th><th>人數</th><th>平均完成率</th><th>單元測驗平均分數</th></tr></thead>
+          <tbody>${deptRows || '<tr><td colspan="4" style="text-align:center;color:var(--text-light)">尚無資料</td></tr>'}</tbody>
+        </table></div>
+      </div>
+    `;
+    main.querySelectorAll('.an-chip').forEach(b => b.onclick = () => { anRole = b.dataset.role; renderAnalytics(); });
+    const sel = main.querySelector('#an-quiz');
+    sel.onchange = () => { anQuiz = sel.value; drawQuizDetail(); };
+    function drawQuizDetail() {
+      const role = meta[anQuiz].role, t = emps.filter(e => e.role === role);
+      const qs = quizSummary(anQuiz, t);
+      // 分數分布長條圖
+      const bins = [['0-59', 0, 59], ['60-69', 60, 69], ['70-79', 70, 79], ['80-89', 80, 89], ['90-100', 90, 100]];
+      const cnt = bins.map(([, a, b]) => qs.last.filter(s => s >= a && s <= b).length);
+      const mx = Math.max(1, ...cnt), W = 360, H = 190, bw = 48, gap = 22, x0 = (W - (5 * bw + 4 * gap)) / 2;
+      document.getElementById('an-hist').innerHTML = qs.n ? `
+        <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:420px">
+          <line x1="${x0 - 6}" y1="150" x2="${W - x0 + 6}" y2="150" stroke="#e2e6ee"/>
+          ${cnt.map((c, i) => { const h = c / mx * 115, x = x0 + i * (bw + gap); return `
+            <rect x="${x}" y="${150 - h}" width="${bw}" height="${h}" rx="5" fill="${i === 0 ? '#c0392b' : i < 3 ? '#d4941e' : '#2e8b57'}"/>
+            <text x="${x + bw / 2}" y="${144 - h}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text-main)">${c}</text>
+            <text x="${x + bw / 2}" y="170" text-anchor="middle" font-size="11.5" fill="var(--text-light)">${bins[i][0]}</text>`; }).join('')}
+        </svg>
+        <div class="an-mini">作答人數 ${qs.n}　｜　平均 ${fmt1(qs.lastAvg)} 分　｜　通過率 ${pctTxt(qs.pass * 100 / qs.n)}</div>` : '<p class="an-empty">尚無作答資料</p>';
+      // 題目答對率
+      const items = itemAnalysis(anQuiz, t);
+      document.getElementById('an-items').innerHTML = items.length ? `
+        <div class="an-items">${items.map(it => {
+          const tag = it.p == null ? '' : it.p < 50 ? '<span class="an-tag bad">需檢視</span>' : it.p > 90 ? '<span class="an-tag easy">偏易</span>' : '';
+          const col = it.p == null ? '#ccc' : it.p < 50 ? '#c0392b' : it.p < 70 ? '#d4941e' : '#2e8b57';
+          return `<div class="an-item"><div class="an-item-top"><span class="an-qno">${it.no}</span><span class="an-q" title="${escapeHtml(it.q || '')}">${escapeHtml(it.q || '')}</span>${tag}<b>${pctTxt(it.p)}</b></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${it.p || 0}%; background:${col}"></div></div></div>`; }).join('')}</div>
+        <p class="an-desc" style="margin-top:10px">答對率低於 50% 的題目建議檢視：可能是題目敘述不清楚，或教材沒有講清楚這個觀念。</p>`
+        : '<p class="an-empty">尚無逐題作答資料。<br><small>（系統更新後的作答才會記錄每一題的對錯）</small></p>';
+    }
+    drawQuizDetail();
+  }
+
+  // ===== 匯出：一份 Excel 包含所有數據 =====
+  function buildAllSheets() {
+    const meta = QUIZ_META();
+    const emps = Data.getEmployees();
+    const attempts = Data.getQuizAttempts().slice().sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+    const gameLogs = Data.getLogs().filter(l => l.type === 'game_opened');
+    // 1. 學員總表
+    const allCourses = [...Data.COURSES.new_employee, ...Data.COURSES.manager];
+    const s1 = [['員工編號', '姓名', '部門', '身分', '完成單元數', '應完成單元數', '完成率(%)', '總學習時間(分)']
+      .concat(allCourses.map(c => c.title + ' 分數'), ['總測驗分數', '總測驗通過', '開啟遊戲次數'])];
+    emps.forEach(e => {
+      const ov = Data.getEmployeeOverallProgress(e.empId);
+      const study = (Data.COURSES[e.role] || []).reduce((a, c) => a + (Data.getProgress(e.empId, c.id).studySeconds || 0), 0);
+      const fin = Data.getProgress(e.empId, 'final_' + e.role);
+      s1.push([e.empId, e.name, e.dept || '', roleName(e.role), ov.completed, ov.total, ov.percent, Math.round(study / 6) / 10]
+        .concat(allCourses.map(c => { const p = Data.getProgress(e.empId, c.id); return p.quizScore != null ? p.quizScore : ''; }),
+          [fin.quizScore != null ? fin.quizScore : '', fin.quizScore != null ? (fin.quizScore >= 80 ? '是' : '否') : '', gameLogs.filter(l => l.empId === e.empId).length]));
+    });
+    // 2. 單元學習紀錄
+    const s2 = [['員工編號', '姓名', '部門', '身分', '單元', '狀態', '影片已看完', '影片觀看秒數', '學習時間(分)', '最後測驗分數', '最後學習時間']];
+    emps.forEach(e => (Data.COURSES[e.role] || []).forEach(c => {
+      const p = Data.getProgress(e.empId, c.id);
+      s2.push([e.empId, e.name, e.dept || '', roleName(e.role), c.title, p.completed ? '已完成' : (p.videoWatched || p.quizScore != null ? '進行中' : '未開始'),
+        p.videoWatched ? '是' : '否', p.videoWatchedSeconds || 0, Math.round((p.studySeconds || 0) / 6) / 10, p.quizScore != null ? p.quizScore : '', p.lastAt || '']);
+    }));
+    // 3. 測驗作答紀錄（每次作答一列）
+    const nth = {};
+    const s3 = [['作答時間', '員工編號', '姓名', '身分', '測驗', '第幾次作答', '分數', '答對題數', '總題數']];
+    const s4 = [['作答時間', '員工編號', '姓名', '測驗', '第幾次作答', '題號', '題目', '答對(1/0)']];
+    attempts.forEach(a => {
+      const e = emps.find(x => x.empId === a.empId) || {}, k = a.empId + '|' + a.quizId;
+      nth[k] = (nth[k] || 0) + 1;
+      const items = a.items || [];
+      s3.push([a.at, a.empId, e.name || '', roleName(e.role), (meta[a.quizId] || {}).title || a.quizId, nth[k], a.score, items.filter(i => i.ok).length, items.length]);
+      items.forEach((it, i) => s4.push([a.at, a.empId, e.name || '', (meta[a.quizId] || {}).title || a.quizId, nth[k], i + 1, it.q, it.ok ? 1 : 0]));
+    });
+    // 5. 題目分析
+    const s5 = [['測驗', '題號', '題目', '作答人數（首次）', '答對率(%)', '建議']];
+    Object.keys(meta).forEach(qid => {
+      const t = emps.filter(e => e.role === meta[qid].role);
+      itemAnalysis(qid, t).forEach(it => s5.push([meta[qid].title, it.no, it.q, it.n, it.p == null ? '' : Math.round(it.p), it.p == null ? '' : it.p < 50 ? '需檢視' : it.p > 90 ? '偏易' : '']));
+    });
+    // 6. 操作紀錄
+    const s6 = [['時間', '員工編號', '姓名', '類型', '內容']];
+    Data.getLogs().forEach(l => { const e = emps.find(x => x.empId === l.empId) || {}; s6.push([l.at, l.empId, e.name || '', typeLabel(l.type), l.detail || '']); });
+    return [['學員總表', s1], ['單元學習紀錄', s2], ['測驗作答紀錄', s3], ['逐題作答明細', s4], ['題目分析', s5], ['操作紀錄', s6]];
+  }
+  function downloadAllExcel() {
+    const sheets = buildAllSheets();
+    const date = new Date().toISOString().slice(0, 10);
+    if (window.XLSX) {
+      const wb = XLSX.utils.book_new();
+      sheets.forEach(([name, rows]) => {
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws['!cols'] = rows[0].map((h, i) => ({ wch: Math.min(40, Math.max(8, ...rows.slice(0, 200).map(r => String(r[i] == null ? '' : r[i]).length + 2))) }));
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+      XLSX.writeFile(wb, `職場法律必修課_完整數據_${date}.xlsx`);
+      toast('完整數據已下載', 'success');
+    } else {
+      // Excel 套件載入失敗時：改成每個工作表各下載一個 CSV
+      sheets.forEach(([name, rows], i) => setTimeout(() => {
+        const csv = '\uFEFF' + rows.map(r => r.map(v => { const t = String(v == null ? '' : v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; }).join(',')).join('\n');
+        Data.downloadFile(`${name}_${date}.csv`, csv);
+      }, i * 400));
+      toast('已改用 CSV 格式下載（共 ' + sheets.length + ' 個檔案）', 'success');
+    }
   }
 
   // ===== 工具 =====
