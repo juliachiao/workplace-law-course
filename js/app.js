@@ -35,16 +35,29 @@ const App = (function () {
     let lastPollTime = 0;
     let maxWatchedTime = initialMaxWatched || 0;
     let isPlaying = false;
+    // 影片還沒按過播放前，不能呼叫 seekTo（YouTube 的 seekTo 會讓影片自動開始播放）
+    // 所以先把續播位置記下來，等學員按下播放鍵時再跳過去
+    let hasStarted = false;
+    let pendingStart = null;
+    function safeSeek(t) {
+      if (!player) return;
+      if (hasStarted) player.seekTo(t, true);
+      else pendingStart = t;
+    }
 
     Object.defineProperty(target, 'currentTime', {
-      get() { return player ? player.getCurrentTime() : 0; },
+      get() { return pendingStart != null ? pendingStart : (player ? player.getCurrentTime() : 0); },
       // 直接設定 currentTime 只允許用在「續播」等內部用途,一律做上限保護
-      set(t) { if (player) player.seekTo(Math.min(t, maxWatchedTime), true); }
+      set(t) { safeSeek(Math.min(t, maxWatchedTime)); }
     });
     Object.defineProperty(target, 'duration', {
       get() { return player ? player.getDuration() : 0; }
     });
-    target.play = () => { if (player) player.playVideo(); };
+    target.play = () => {
+      if (!player) return;
+      if (pendingStart != null) { const t = pendingStart; pendingStart = null; player.seekTo(t, true); }
+      player.playVideo();
+    };
     target.pause = () => { if (player) player.pauseVideo(); };
     target.mute = () => { if (player) player.mute(); };
     target.unmute = () => { if (player) player.unMute(); };
@@ -53,7 +66,7 @@ const App = (function () {
     target.requestSeek = (t) => {
       if (!player) return false;
       const safeTime = Math.min(Math.max(0, t), maxWatchedTime);
-      player.seekTo(safeTime, true);
+      safeSeek(safeTime);
       return safeTime >= t - 0.5; // 回報是否為「完整跳轉」(沒有被裁切)
     };
     target.isPlayingNow = () => isPlaying;
@@ -71,6 +84,7 @@ const App = (function () {
           onStateChange: (e) => {
             if (e.data === YT.PlayerState.PLAYING) {
               isPlaying = true;
+              hasStarted = true;
               target.dispatchEvent(new Event('play'));
               if (!pollTimer) {
                 lastPollTime = player.getCurrentTime();
